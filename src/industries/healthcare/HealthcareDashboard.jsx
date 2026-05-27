@@ -68,9 +68,9 @@ function AssetCard({ asset, selected, onClick }) {
       {/* Inline vitals for patient monitors */}
       {asset.asset_type === 'patient_monitor' && (
         <div style={{ display:'flex', gap:6, flexWrap:'wrap', marginBottom:6 }}>
-          {asset.heart_rate    != null && <VitalSign label="HR"   value={asset.heart_rate}    unit="bpm" low={60}  high={100} />}
-          {asset.spo2_pct      != null && <VitalSign label="SpO2" value={asset.spo2_pct}       unit="%"   low={95}  high={100} />}
-          {asset.systolic_bp   != null && <VitalSign label="SBP"  value={asset.systolic_bp}    unit="mmHg" low={90} high={140} />}
+          {asset.heart_rate_bpm    != null && <VitalSign label="HR"   value={asset.heart_rate_bpm}    unit="bpm"  low={60}  high={100} />}
+          {asset.spo2_pct          != null && <VitalSign label="SpO2" value={asset.spo2_pct}           unit="%"    low={95}  high={100} />}
+          {asset.bp_systolic_mmhg  != null && <VitalSign label="SBP"  value={asset.bp_systolic_mmhg}  unit="mmHg" low={90}  high={140} />}
         </div>
       )}
       <div style={{ display:'flex', justifyContent:'space-between', alignItems:'center' }}>
@@ -89,14 +89,14 @@ function AssetCard({ asset, selected, onClick }) {
 
 function PatientDetail({ asset }) {
   const fields = [
-    { label: 'Heart Rate',       val: asset.heart_rate,        unit: 'bpm', low:60,  high:100 },
-    { label: 'SpO2',             val: asset.spo2_pct,           unit: '%',   low:95,  high:100 },
-    { label: 'Systolic BP',      val: asset.systolic_bp,        unit: 'mmHg',low:90,  high:140 },
-    { label: 'Diastolic BP',     val: asset.diastolic_bp,       unit: 'mmHg',low:60,  high:90 },
-    { label: 'Temperature',      val: asset.temp_c,             unit: '°C',  low:36.1,high:37.2 },
-    { label: 'Resp. Rate',       val: asset.respiratory_rate,   unit: 'brpm',low:12,  high:20 },
-    { label: 'Blood Glucose',    val: asset.blood_glucose_mgdl, unit: 'mg/dL',low:70, high:140 },
-    { label: 'Pain Score',       val: asset.pain_score,         unit: '/10', low:0,   high:4 },
+    { label: 'Heart Rate',       val: asset.heart_rate_bpm,       unit: 'bpm',  low:60,  high:100 },
+    { label: 'SpO2',             val: asset.spo2_pct,              unit: '%',    low:95,  high:100 },
+    { label: 'Systolic BP',      val: asset.bp_systolic_mmhg,      unit: 'mmHg', low:90,  high:140 },
+    { label: 'Diastolic BP',     val: asset.bp_diastolic_mmhg,     unit: 'mmHg', low:60,  high:90 },
+    { label: 'Temperature',      val: asset.temperature_c,         unit: '°C',   low:36.1,high:37.2 },
+    { label: 'Resp. Rate',       val: asset.respiratory_rate_bpm,  unit: 'brpm', low:12,  high:20 },
+    { label: 'MAP',              val: asset.map_mmhg,              unit: 'mmHg', low:70,  high:100 },
+    { label: 'EtCO2',            val: asset.etco2_mmhg,            unit: 'mmHg', low:35,  high:45 },
   ];
   return (
     <div style={{ display:'grid', gridTemplateColumns:'repeat(auto-fill, minmax(130px,1fr))', gap:10 }}>
@@ -120,14 +120,14 @@ function PatientDetail({ asset }) {
 
 function VentilatorDetail({ asset }) {
   const fields = [
-    { label: 'Tidal Volume',    val: asset.tidal_volume_ml,      unit: 'ml' },
-    { label: 'Resp. Rate',      val: asset.respiratory_rate,     unit: 'brpm' },
-    { label: 'FiO2',            val: asset.fio2_pct,             unit: '%' },
-    { label: 'PEEP',            val: asset.peep_cmh2o,           unit: 'cmH₂O' },
-    { label: 'Peak Pressure',   val: asset.peak_pressure_cmh2o,  unit: 'cmH₂O' },
-    { label: 'O2 Saturation',   val: asset.o2_saturation,        unit: '%' },
+    { label: 'Tidal Volume',    val: asset.tidal_volume_ml,           unit: 'ml' },
+    { label: 'Resp. Rate Set',  val: asset.respiratory_rate_set,      unit: 'brpm' },
+    { label: 'Resp. Rate Act.', val: asset.respiratory_rate_actual,   unit: 'brpm' },
+    { label: 'FiO2',            val: asset.fio2_pct,                  unit: '%' },
+    { label: 'PEEP',            val: asset.peep_cmh2o,                unit: 'cmH₂O' },
+    { label: 'Peak Pressure',   val: asset.peak_pressure_cmh2o,       unit: 'cmH₂O' },
     { label: 'Alarm Active',    val: asset.alarm_active ? 'YES' : 'NO', unit: '' },
-    { label: 'Mode',            val: asset.ventilation_mode,     unit: '' },
+    { label: 'Mode',            val: asset.ventilation_mode,          unit: '' },
   ];
   return (
     <div style={{ display:'grid', gridTemplateColumns:'repeat(auto-fill, minmax(130px,1fr))', gap:10 }}>
@@ -172,15 +172,15 @@ export default function HealthcareDashboard() {
     if (!hasChanged) return;
     prevRef.current = assets;
 
-    const avgHR   = monitors.length ? (monitors.reduce((s, a) => s + (a.heart_rate ?? 0), 0) / monitors.length).toFixed(0) : 0;
-    const avgSpO2 = monitors.length ? (monitors.reduce((s, a) => s + (a.spo2_pct   ?? 0), 0) / monitors.length).toFixed(1) : 0;
+    const avgHR   = monitors.length ? (monitors.reduce((s, a) => s + (a.heart_rate_bpm ?? 0), 0) / monitors.length).toFixed(0) : 0;
+    const avgSpO2 = monitors.length ? (monitors.reduce((s, a) => s + (a.spo2_pct      ?? 0), 0) / monitors.length).toFixed(1) : 0;
     const time    = new Date().toLocaleTimeString('en', { hour12:false, hour:'2-digit', minute:'2-digit', second:'2-digit' });
     setHistory(prev => [...prev, { time, avgHR: Number(avgHR), avgSpO2: Number(avgSpO2) }].slice(-MAX_HISTORY));
   }, [assets]);
 
   const critical    = monitors.filter(a => a.kpis?.is_critical).length;
-  const avgSpO2     = monitors.length ? (monitors.reduce((s, a) => s + (a.spo2_pct ?? 0), 0) / monitors.length).toFixed(1) : '—';
-  const avgHR       = monitors.length ? Math.round(monitors.reduce((s, a) => s + (a.heart_rate ?? 0), 0) / monitors.length) : '—';
+  const avgSpO2     = monitors.length ? (monitors.reduce((s, a) => s + (a.spo2_pct       ?? 0), 0) / monitors.length).toFixed(1) : '—';
+  const avgHR       = monitors.length ? Math.round(monitors.reduce((s, a) => s + (a.heart_rate_bpm ?? 0), 0) / monitors.length) : '—';
   const critAlerts  = alerts.filter(a => a.severity === 'critical').length;
 
   return (
