@@ -38,9 +38,11 @@ function TempIndicator({ temp, minTemp = 2, maxTemp = 8 }) {
 }
 
 function AssetCard({ asset, selected, onClick }) {
-  const meta     = ASSET_META[asset.asset_type] || { icon: '📦', label: asset.asset_type };
-  const health   = asset.kpis?.health_score ?? 100;
-  const coldChain = asset.asset_type === 'cold_chain' || asset.asset_type === 'truck';
+  const meta      = ASSET_META[asset.asset_type] || { icon: '📦', label: asset.asset_type };
+  const health    = asset.kpis?.health_score ?? 100;
+  const isCold    = asset.asset_type === 'cold_chain';
+  const assetTemp = asset.current_temp_c ?? asset.cargo_temp_c ?? asset.temp_c ?? null;
+  const slaFail   = asset.on_time === false;
   return (
     <div onClick={onClick} style={{
       background: selected ? 'rgba(249,115,22,0.08)' : 'rgba(255,255,255,0.03)',
@@ -61,12 +63,17 @@ function AssetCard({ asset, selected, onClick }) {
               {Math.round(asset.speed_kmh)} <span style={{ fontSize:10, color:'#64748b' }}>km/h</span>
             </div>
           )}
-          {coldChain && asset.temp_c != null && (
-            <TempIndicator temp={asset.temp_c} />
+          {isCold && assetTemp != null && (
+            <TempIndicator temp={assetTemp} />
+          )}
+          {asset.carrier && (
+            <div style={{ fontSize:11, color:'#94a3b8' }}>{asset.carrier}</div>
           )}
           <div style={{ fontSize:10, color:'#475569', marginTop:4 }}>
-            {meta.label}
-            {asset.sla_breach && (
+            {asset.origin_city && asset.destination_city
+              ? `${asset.origin_city} → ${asset.destination_city}`
+              : meta.label}
+            {slaFail && (
               <span style={{ marginLeft:6, color:'#ef4444', fontWeight:600 }}>SLA BREACH</span>
             )}
           </div>
@@ -83,25 +90,16 @@ function AssetCard({ asset, selected, onClick }) {
   );
 }
 
-function TruckDetail({ asset }) {
-  const fields = [
-    { label: 'Speed',          val: asset.speed_kmh,       unit: 'km/h' },
-    { label: 'Temperature',    val: asset.temp_c,          unit: '°C' },
-    { label: 'Humidity',       val: asset.humidity_pct,    unit: '%' },
-    { label: 'Load',           val: asset.load_pct,        unit: '%' },
-    { label: 'Fuel',           val: asset.fuel_pct,        unit: '%' },
-    { label: 'ETA',            val: asset.eta_min,         unit: 'min' },
-    { label: 'Shock Events',   val: asset.shock_events,    unit: '' },
-    { label: 'On Time',        val: asset.on_time ? 'YES' : 'NO', unit: '' },
-  ];
+function DetailGrid({ fields }) {
   return (
     <div style={{ display:'grid', gridTemplateColumns:'repeat(auto-fill, minmax(130px,1fr))', gap:10 }}>
       {fields.map(f => (
         <div key={f.label} style={{ background:'rgba(255,255,255,0.03)',
           border:'1px solid rgba(255,255,255,0.06)', borderRadius:8, padding:'10px 12px' }}>
           <div style={{ fontSize:10, color:'#64748b', marginBottom:4 }}>{f.label}</div>
-          <div style={{ fontSize:18, fontWeight:700,
-            color: (f.label === 'On Time' && f.val === 'NO') ? '#ef4444' : '#e2e8f0',
+          <div style={{ fontSize:16, fontWeight:700,
+            color: (f.label === 'On Time' && f.val === 'NO') ? '#ef4444' :
+                   (f.label === 'On Time' && f.val === 'YES') ? '#22c55e' : '#e2e8f0',
             fontFamily:'monospace' }}>
             {f.val != null ? (typeof f.val === 'number' ? Number(f.val).toFixed(1) : String(f.val)) : '—'}
             {f.unit && <span style={{ fontSize:11, color:'#475569', marginLeft:3 }}>{f.unit}</span>}
@@ -112,6 +110,59 @@ function TruckDetail({ asset }) {
   );
 }
 
+// delivery_vehicle detail — uses delivery_vehicle field names from simulator
+function TruckDetail({ asset }) {
+  const fields = [
+    { label: 'Speed',          val: asset.speed_kmh,               unit: 'km/h' },
+    { label: 'Cargo Temp',     val: asset.cargo_temp_c,            unit: '°C' },
+    { label: 'Fuel Level',     val: asset.fuel_level_pct,          unit: '%' },
+    { label: 'Deliveries Done',val: asset.deliveries_completed,    unit: '' },
+    { label: 'Pending',        val: asset.deliveries_pending,      unit: '' },
+    { label: 'Next Stop ETA',  val: asset.next_stop_eta_min,       unit: 'min' },
+    { label: 'Harsh Brakes',   val: asset.harsh_brake_count,       unit: '' },
+    { label: 'On Time',        val: asset.on_time != null ? (asset.on_time ? 'YES' : 'NO') : null, unit: '' },
+  ];
+  return <DetailGrid fields={fields} />;
+}
+
+// shipment detail — uses shipment field names from simulator
+function ShipmentDetail({ asset }) {
+  const fields = [
+    { label: 'Tracking ID',    val: asset.tracking_id,            unit: '' },
+    { label: 'Carrier',        val: asset.carrier,                unit: '' },
+    { label: 'Service',        val: asset.service_type,           unit: '' },
+    { label: 'Origin',         val: asset.origin_city,            unit: '' },
+    { label: 'Destination',    val: asset.destination_city,       unit: '' },
+    { label: 'Weight',         val: asset.weight_kg,              unit: 'kg' },
+    { label: 'Delay',          val: asset.delay_h,                unit: 'h' },
+    { label: 'On Time',        val: asset.on_time != null ? (asset.on_time ? 'YES' : 'NO') : null, unit: '' },
+  ];
+  return <DetailGrid fields={fields} />;
+}
+
+// cold_chain detail — uses cold_chain field names from simulator
+function ColdChainDetail({ asset }) {
+  const fields = [
+    { label: 'Current Temp',   val: asset.current_temp_c,         unit: '°C' },
+    { label: 'Set Point',      val: asset.set_point_c,            unit: '°C' },
+    { label: 'Deviation',      val: asset.temp_deviation_c,       unit: '°C' },
+    { label: 'Humidity',       val: asset.humidity_pct,           unit: '%' },
+    { label: 'Compressor',     val: asset.compressor_status,      unit: '' },
+    { label: 'Door Open',      val: asset.door_open ? 'YES' : 'NO', unit: '' },
+    { label: 'Excursions',     val: asset.excursion_count,        unit: '' },
+    { label: 'Battery Backup', val: asset.battery_backup_h,       unit: 'h' },
+  ];
+  return <DetailGrid fields={fields} />;
+}
+
+const DETAIL_COMPONENTS = {
+  delivery_vehicle: TruckDetail,
+  truck:            TruckDetail,
+  van:              TruckDetail,
+  shipment:         ShipmentDetail,
+  cold_chain:       ColdChainDetail,
+};
+
 export default function LogisticsDashboard() {
   const industry = INDUSTRIES.logistics;
   const { status, assets, alerts, refresh } = useCondenseWS(industry.apiUrl);
@@ -120,9 +171,14 @@ export default function LogisticsDashboard() {
   const [history, setHistory]             = useState([]);
   const prevRef = useRef({});
 
-  const assetList  = Object.values(assets);
-  const trucks     = assetList.filter(a => a.asset_type === 'truck' || a.asset_type === 'van');
-  const selectedObj = selectedAsset ? assets[selectedAsset] : null;
+  const assetList   = Object.values(assets);
+  // include all moving asset types: delivery_vehicle, shipment, truck, van
+  const movingAssets = assetList.filter(a => ['truck','van','delivery_vehicle','shipment'].includes(a.asset_type));
+  const selectedObj  = selectedAsset ? assets[selectedAsset] : null;
+  const DetailComp   = selectedObj ? (DETAIL_COMPONENTS[selectedObj.asset_type] || null) : null;
+
+  // helper: get temperature from any asset type
+  const getTemp = (a) => a.current_temp_c ?? a.cargo_temp_c ?? a.temp_c ?? null;
 
   useEffect(() => {
     if (assetList.length === 0) return;
@@ -130,9 +186,9 @@ export default function LogisticsDashboard() {
     if (!hasChanged) return;
     prevRef.current = assets;
 
-    const coldChain = assetList.filter(a => a.temp_c != null);
-    const avgTemp   = coldChain.length ? (coldChain.reduce((s, a) => s + a.temp_c, 0) / coldChain.length).toFixed(1) : null;
-    const onTime    = trucks.length ? Math.round((trucks.filter(a => a.on_time).length / trucks.length) * 100) : 0;
+    const coldChain = assetList.filter(a => getTemp(a) != null);
+    const avgTemp   = coldChain.length ? (coldChain.reduce((s, a) => s + getTemp(a), 0) / coldChain.length).toFixed(1) : null;
+    const onTime    = movingAssets.length ? Math.round((movingAssets.filter(a => a.on_time).length / movingAssets.length) * 100) : 0;
     const time      = new Date().toLocaleTimeString('en', { hour12:false, hour:'2-digit', minute:'2-digit', second:'2-digit' });
     setHistory(prev => [...prev, {
       time,
@@ -141,9 +197,10 @@ export default function LogisticsDashboard() {
     }].slice(-MAX_HISTORY));
   }, [assets]);
 
-  const slaBreaches   = assetList.filter(a => a.sla_breach).length;
-  const onTimePct     = trucks.length ? Math.round((trucks.filter(a => a.on_time).length / trucks.length) * 100) : 100;
-  const coldChainOOR  = assetList.filter(a => a.temp_c != null && (a.temp_c < 2 || a.temp_c > 8)).length;
+  // SLA breach: on_time === false (works for both shipment and delivery_vehicle)
+  const slaBreaches   = assetList.filter(a => a.on_time === false).length;
+  const onTimePct     = movingAssets.length ? Math.round((movingAssets.filter(a => a.on_time).length / movingAssets.length) * 100) : 100;
+  const coldChainOOR  = assetList.filter(a => { const t = getTemp(a); return t != null && (t < 2 || t > 8); }).length;
   const critAlerts    = alerts.filter(a => a.severity === 'critical').length;
 
   // Shipment status breakdown
@@ -161,7 +218,7 @@ export default function LogisticsDashboard() {
             <h1 style={{ fontSize:20, fontWeight:700, color:'#f1f5f9', margin:0 }}>Logistics & Supply Chain</h1>
           </div>
           <div style={{ fontSize:12, color:'#475569' }}>
-            Live fleet tracking · {assetList.length} assets · {trucks.length} vehicles in motion
+            Live fleet tracking · {assetList.length} assets · {movingAssets.length} vehicles in motion
           </div>
         </div>
         <div style={{ display:'flex', alignItems:'center', gap:16 }}>
@@ -173,7 +230,7 @@ export default function LogisticsDashboard() {
       </div>
 
       <div style={{ display:'flex', gap:12, marginBottom:24, flexWrap:'wrap' }}>
-        <KPICard label="Active Vehicles"   value={trucks.length}              color="#22c55e" />
+        <KPICard label="Active Vehicles"   value={movingAssets.length}        color="#22c55e" />
         <KPICard label="On-Time Rate"      value={onTimePct}     unit="%"     color={onTimePct >= 90 ? '#22c55e' : '#f59e0b'} />
         <KPICard label="SLA Breaches"      value={slaBreaches}                color={slaBreaches > 0 ? '#ef4444' : '#22c55e'} />
         <KPICard label="Cold Chain OOR"    value={coldChainOOR}               color={coldChainOOR > 0 ? '#ef4444' : '#22c55e'} />
@@ -245,7 +302,7 @@ export default function LogisticsDashboard() {
             </div>
           </div>
 
-          {selectedObj && (
+          {selectedObj && DetailComp && (
             <div style={{ background:'rgba(255,255,255,0.02)', border:'1px solid rgba(255,255,255,0.07)',
               borderRadius:12, padding:'16px 20px' }}>
               <div style={{ display:'flex', justifyContent:'space-between', marginBottom:14 }}>
@@ -257,7 +314,7 @@ export default function LogisticsDashboard() {
                   {selectedObj.processed_at && new Date(selectedObj.processed_at).toLocaleTimeString()}
                 </span>
               </div>
-              <TruckDetail asset={selectedObj} />
+              <DetailComp asset={selectedObj} />
             </div>
           )}
         </div>

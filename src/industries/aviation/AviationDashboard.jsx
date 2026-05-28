@@ -53,7 +53,7 @@ function AssetCard({ asset, selected, onClick }) {
         <div>
           <span style={{ fontSize:16, marginRight:6 }}>{meta.icon}</span>
           <span style={{ fontSize:12, fontWeight:600, color:'#cbd5e1' }}>
-            {asset.flight_no || asset.asset_id}
+            {asset.flight_number || asset.asset_id}
           </span>
         </div>
         <FlightStatusBadge status={asset.status} />
@@ -66,7 +66,7 @@ function AssetCard({ asset, selected, onClick }) {
       <div style={{ display:'flex', justifyContent:'space-between', alignItems:'center' }}>
         <div style={{ fontSize:10, color:'#475569' }}>
           {asset.origin && asset.destination ? `${asset.origin} → ${asset.destination}` : meta.label}
-          {asset.pax_count ? ` · ${asset.pax_count} pax` : ''}
+          {asset.total_passengers ? ` · ${asset.total_passengers} pax` : ''}
         </div>
         <HealthGauge score={health} size={48} />
       </div>
@@ -82,28 +82,28 @@ function AssetCard({ asset, selected, onClick }) {
 
 function GateDetail({ asset }) {
   const fields = [
-    { label: 'Flight',          val: asset.flight_no,           unit: '' },
-    { label: 'Aircraft Type',   val: asset.aircraft_type,       unit: '' },
-    { label: 'PAX Count',       val: asset.pax_count,           unit: '' },
-    { label: 'Delay',           val: asset.delay_min,           unit: 'min' },
-    { label: 'Turnaround',      val: asset.turnaround_min,      unit: 'min' },
-    { label: 'Boarding %',      val: asset.boarding_pct,        unit: '%' },
-    { label: 'Gate Status',     val: asset.gate_status,         unit: '' },
-    { label: 'Next Departure',  val: asset.next_departure,      unit: '' },
+    { label: 'Flight',          val: asset.flight_number,           unit: '' },
+    { label: 'Aircraft Type',   val: asset.aircraft_type,           unit: '' },
+    { label: 'PAX Count',       val: asset.total_passengers,        unit: '' },
+    { label: 'Delay',           val: asset.delay_min,               unit: 'min' },
+    { label: 'Turnaround',      val: asset.turnaround_time_min,     unit: 'min' },
+    { label: 'Boarding %',      val: asset.baggage_loaded_pct,      unit: '%' },
+    { label: 'Gate',            val: asset.gate,                    unit: '' },
+    { label: 'Runway',          val: asset.runway,                  unit: '' },
   ];
   return <DetailGrid fields={fields} />;
 }
 
 function FlightDetail({ asset }) {
   const fields = [
-    { label: 'Flight No',       val: asset.flight_no,           unit: '' },
-    { label: 'Altitude',        val: asset.altitude_ft,         unit: 'ft' },
-    { label: 'Speed',           val: asset.speed_kmh,           unit: 'km/h' },
-    { label: 'ETA',             val: asset.eta_min,             unit: 'min' },
-    { label: 'Origin',          val: asset.origin,              unit: '' },
-    { label: 'Destination',     val: asset.destination,         unit: '' },
-    { label: 'Fuel Remaining',  val: asset.fuel_remaining_pct,  unit: '%' },
-    { label: 'PAX',             val: asset.pax_count,           unit: '' },
+    { label: 'Flight No',       val: asset.flight_number,           unit: '' },
+    { label: 'Altitude',        val: asset.altitude_ft,             unit: 'ft' },
+    { label: 'Speed',           val: asset.ground_speed_kts,        unit: 'kts' },
+    { label: 'Delay',           val: asset.delay_min,               unit: 'min' },
+    { label: 'Origin',          val: asset.origin,                  unit: '' },
+    { label: 'Destination',     val: asset.destination,             unit: '' },
+    { label: 'Fuel',            val: asset.fuel_kg,                 unit: 'kg' },
+    { label: 'PAX',             val: asset.total_passengers,        unit: '' },
   ];
   return <DetailGrid fields={fields} />;
 }
@@ -266,7 +266,7 @@ export default function AviationDashboard() {
               borderRadius:12, padding:'16px 20px' }}>
               <div style={{ display:'flex', justifyContent:'space-between', marginBottom:14 }}>
                 <div style={{ fontSize:13, fontWeight:600, color:'#cbd5e1' }}>
-                  {ASSET_META[selectedObj.asset_type]?.icon} {selectedObj.flight_no || selectedObj.asset_id}
+                  {ASSET_META[selectedObj.asset_type]?.icon} {selectedObj.flight_number || selectedObj.asset_id}
                   <span style={{ marginLeft:8 }}><FlightStatusBadge status={selectedObj.status} /></span>
                 </div>
                 <span style={{ fontSize:10, color:'#475569' }}>
