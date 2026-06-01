@@ -45,7 +45,7 @@ function OEEDisplay({ oee = 0, availability = 0, performance = 0, quality = 0 })
 function AssetCard({ asset, selected, onClick }) {
   const meta   = ASSET_META[asset.asset_type] || { icon: '🔩', label: asset.asset_type };
   const health = asset.kpis?.health_score ?? 100;
-  const oee    = asset.oee_pct ?? null;
+  const oee    = asset.kpis?.oee_pct ?? null;
   return (
     <div onClick={onClick} style={{
       background: selected ? 'rgba(139,92,246,0.08)' : 'rgba(255,255,255,0.03)',
@@ -72,10 +72,10 @@ function AssetCard({ asset, selected, onClick }) {
         </div>
         <HealthGauge score={health} size={54} />
       </div>
-      {asset.vibration_ms2 > 4 && (
+      {asset.vibration_g > 4 && (
         <div style={{ marginTop:8, fontSize:10, color:'#ef4444',
           background:'rgba(239,68,68,0.08)', padding:'3px 8px', borderRadius:4, display:'inline-block' }}>
-          ⚡ High vibration {asset.vibration_ms2?.toFixed(2)} m/s²
+          ⚡ High vibration {asset.vibration_g?.toFixed(2)} g
         </div>
       )}
     </div>
@@ -84,14 +84,14 @@ function AssetCard({ asset, selected, onClick }) {
 
 function MachineDetail({ asset }) {
   const fields = [
-    { label: 'OEE',           val: asset.oee_pct,            unit: '%' },
+    { label: 'OEE',           val: asset.kpis?.oee_pct,      unit: '%' },
     { label: 'Availability',  val: asset.availability_pct,   unit: '%' },
     { label: 'Performance',   val: asset.performance_pct,    unit: '%' },
     { label: 'Quality',       val: asset.quality_pct,        unit: '%' },
-    { label: 'Vibration',     val: asset.vibration_ms2,      unit: 'm/s²' },
-    { label: 'Temperature',   val: asset.temp_c,             unit: '°C' },
-    { label: 'Cycles',        val: asset.cycles_count,       unit: '' },
-    { label: 'Throughput',    val: asset.throughput_pph,     unit: 'pph' },
+    { label: 'Vibration',     val: asset.vibration_g,        unit: 'g' },
+    { label: 'Temperature',   val: asset.spindle_temp_c,     unit: '°C' },
+    { label: 'Parts Today',   val: asset.parts_produced_today, unit: '' },
+    { label: 'Spindle RPM',   val: asset.spindle_rpm,        unit: 'rpm' },
   ];
   return (
     <div style={{ display:'grid', gridTemplateColumns:'repeat(auto-fill, minmax(130px,1fr))', gap:10 }}>
@@ -118,7 +118,7 @@ export default function ManufacturingDashboard() {
   const prevRef = useRef({});
 
   const assetList   = Object.values(assets);
-  const machines    = assetList.filter(a => a.oee_pct != null);
+  const machines    = assetList.filter(a => a.kpis?.oee_pct != null);
   const selectedObj = selectedAsset ? assets[selectedAsset] : null;
 
   useEffect(() => {
@@ -127,13 +127,13 @@ export default function ManufacturingDashboard() {
     if (!hasChanged) return;
     prevRef.current = assets;
 
-    const avgOEE  = machines.length ? (machines.reduce((s, a) => s + (a.oee_pct ?? 0), 0) / machines.length).toFixed(1) : 0;
-    const avgVib  = assetList.length ? (assetList.reduce((s, a) => s + (a.vibration_ms2 ?? 0), 0) / assetList.length).toFixed(2) : 0;
+    const avgOEE  = machines.length ? (machines.reduce((s, a) => s + (a.kpis?.oee_pct ?? 0), 0) / machines.length).toFixed(1) : 0;
+    const avgVib  = assetList.length ? (assetList.reduce((s, a) => s + (a.vibration_g ?? 0), 0) / assetList.length).toFixed(2) : 0;
     const time    = new Date().toLocaleTimeString('en', { hour12:false, hour:'2-digit', minute:'2-digit', second:'2-digit' });
     setHistory(prev => [...prev, { time, avgOEE: Number(avgOEE), avgVibration: Number(avgVib) }].slice(-MAX_HISTORY));
   }, [assets]);
 
-  const avgOEE      = machines.length ? (machines.reduce((s, a) => s + (a.oee_pct ?? 0), 0) / machines.length).toFixed(1) : 0;
+  const avgOEE      = machines.length ? (machines.reduce((s, a) => s + (a.kpis?.oee_pct ?? 0), 0) / machines.length).toFixed(1) : 0;
   const running     = assetList.filter(a => a.status === 'running').length;
   const faulted     = assetList.filter(a => a.status === 'fault').length;
   const critAlerts  = alerts.filter(a => a.severity === 'critical').length;
@@ -141,7 +141,7 @@ export default function ManufacturingDashboard() {
   // Per-machine OEE bar chart data
   const oeeBarData = machines.slice(0, 8).map(m => ({
     id:  m.asset_id.replace(/machine_|mach_/i, 'M'),
-    oee: Number((m.oee_pct ?? 0).toFixed(1)),
+    oee: Number((m.kpis?.oee_pct ?? 0).toFixed(1)),
   }));
 
   return (

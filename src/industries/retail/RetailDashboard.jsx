@@ -55,20 +55,20 @@ function AssetCard({ asset, selected, onClick }) {
       </div>
       <div style={{ display:'flex', justifyContent:'space-between', alignItems:'center' }}>
         <div style={{ flex:1, marginRight:8 }}>
-          {asset.footfall != null && (
+          {(asset.footfall_last_hour ?? asset.footfall) != null && (
             <div style={{ fontSize:18, fontWeight:700, color:'#ec4899', fontFamily:'monospace', lineHeight:1 }}>
-              {Math.round(asset.footfall)}
-              <span style={{ fontSize:10, color:'#64748b', marginLeft:3 }}>visitors</span>
+              {Math.round(asset.footfall_last_hour ?? asset.footfall)}
+              <span style={{ fontSize:10, color:'#64748b', marginLeft:3 }}>visitors/hr</span>
             </div>
           )}
-          {asset.basket_value_usd != null && (
+          {(asset.avg_basket_value_inr ?? asset.basket_value_usd) != null && (
             <div style={{ fontSize:16, fontWeight:700, color:'#22c55e', fontFamily:'monospace' }}>
-              ${Number(asset.basket_value_usd).toFixed(2)}
+              {Number(asset.avg_basket_value_inr ?? asset.basket_value_usd).toFixed(0)}
               <span style={{ fontSize:10, color:'#64748b', marginLeft:3 }}>avg basket</span>
             </div>
           )}
-          {asset.conversion_rate != null && (
-            <ConversionBar rate={asset.conversion_rate} />
+          {(asset.conversion_rate_pct ?? asset.conversion_rate) != null && (
+            <ConversionBar rate={asset.conversion_rate_pct ?? asset.conversion_rate} />
           )}
           <div style={{ fontSize:10, color:'#475569', marginTop:4 }}>{meta.label}</div>
         </div>
@@ -86,14 +86,28 @@ function AssetCard({ asset, selected, onClick }) {
 
 function ZoneDetail({ asset }) {
   const fields = [
-    { label: 'Footfall',        val: asset.footfall,            unit: '' },
-    { label: 'Dwell Time',      val: asset.dwell_time_sec,      unit: 's' },
-    { label: 'Conversion',      val: asset.conversion_rate,     unit: '%' },
-    { label: 'Active Sessions', val: asset.active_sessions,     unit: '' },
-    { label: 'Revenue/hr',      val: asset.revenue_per_hr_usd,  unit: 'USD' },
-    { label: 'Bounce Rate',     val: asset.bounce_rate_pct,     unit: '%' },
-    { label: 'Avg Basket',      val: asset.avg_basket_usd,      unit: 'USD' },
-    { label: 'Returns',         val: asset.return_count,        unit: '' },
+    { label: 'Footfall/hr',     val: asset.footfall_last_hour,      unit: '' },
+    { label: 'Dwell Time',      val: asset.dwell_time_min,          unit: 'min' },
+    { label: 'Conversion',      val: asset.conversion_rate_pct,     unit: '%' },
+    { label: 'Occupancy',       val: asset.current_occupancy,       unit: '' },
+    { label: 'Sales Today',     val: asset.sales_today_inr,         unit: 'INR' },
+    { label: 'Bounce Rate',     val: asset.bounce_rate_pct,         unit: '%' },
+    { label: 'Avg Basket',      val: asset.avg_basket_value_inr,    unit: 'INR' },
+    { label: 'Zone',            val: asset.zone_name,               unit: '' },
+  ];
+  return <DetailGrid fields={fields} />;
+}
+
+function InventorySensorDetail({ asset }) {
+  const fields = [
+    { label: 'Zone',            val: asset.zone_name,               unit: '' },
+    { label: 'Occupancy',       val: asset.current_occupancy,       unit: '' },
+    { label: 'Footfall/hr',     val: asset.footfall_last_hour,      unit: '' },
+    { label: 'Conversion',      val: asset.conversion_rate_pct,     unit: '%' },
+    { label: 'Sales Today',     val: asset.sales_today_inr,         unit: 'INR' },
+    { label: 'Avg Basket',      val: asset.avg_basket_value_inr,    unit: 'INR' },
+    { label: 'Dwell Time',      val: asset.dwell_time_min,          unit: 'min' },
+    { label: 'Stock Level',     val: asset.stock_pct,               unit: '%' },
   ];
   return <DetailGrid fields={fields} />;
 }
@@ -129,7 +143,7 @@ function DetailGrid({ fields }) {
   );
 }
 
-const DETAIL_COMPONENTS = { store_zone: ZoneDetail, checkout: CheckoutDetail };
+const DETAIL_COMPONENTS = { store_zone: ZoneDetail, checkout: CheckoutDetail, inventory_sensor: InventorySensorDetail, digital_platform: ZoneDetail };
 
 export default function RetailDashboard() {
   const industry = INDUSTRIES.retail;
@@ -140,7 +154,7 @@ export default function RetailDashboard() {
   const prevRef = useRef({});
 
   const assetList = Object.values(assets);
-  const zones     = assetList.filter(a => a.asset_type === 'store_zone' || a.asset_type === 'digital_platform');
+  const zones     = assetList.filter(a => ['store_zone', 'digital_platform', 'inventory_sensor'].includes(a.asset_type));
   const checkouts = assetList.filter(a => a.asset_type === 'checkout');
   const selectedObj = selectedAsset ? assets[selectedAsset] : null;
   const DetailComp  = selectedObj ? (DETAIL_COMPONENTS[selectedObj.asset_type] || null) : null;
@@ -151,8 +165,8 @@ export default function RetailDashboard() {
     if (!hasChanged) return;
     prevRef.current = assets;
 
-    const totalFootfall = zones.reduce((s, a) => s + (a.footfall ?? 0), 0);
-    const avgConversion = zones.length ? (zones.reduce((s, a) => s + (a.conversion_rate ?? 0), 0) / zones.length).toFixed(2) : 0;
+    const totalFootfall = zones.reduce((s, a) => s + (a.footfall_last_hour ?? a.footfall ?? 0), 0);
+    const avgConversion = zones.length ? (zones.reduce((s, a) => s + (a.conversion_rate_pct ?? a.conversion_rate ?? 0), 0) / zones.length).toFixed(2) : 0;
     const avgQueue      = checkouts.length ? (checkouts.reduce((s, a) => s + (a.queue_length ?? 0), 0) / checkouts.length).toFixed(1) : 0;
     const time          = new Date().toLocaleTimeString('en', { hour12:false, hour:'2-digit', minute:'2-digit', second:'2-digit' });
     setHistory(prev => [...prev, {
@@ -163,15 +177,15 @@ export default function RetailDashboard() {
     }].slice(-MAX_HISTORY));
   }, [assets]);
 
-  const totalFootfall  = zones.reduce((s, a) => s + (a.footfall ?? 0), 0);
-  const avgConversion  = zones.length ? (zones.reduce((s, a) => s + (a.conversion_rate ?? 0), 0) / zones.length).toFixed(1) : 0;
+  const totalFootfall  = zones.reduce((s, a) => s + (a.footfall_last_hour ?? a.footfall ?? 0), 0);
+  const avgConversion  = zones.length ? (zones.reduce((s, a) => s + (a.conversion_rate_pct ?? a.conversion_rate ?? 0), 0) / zones.length).toFixed(1) : 0;
   const lowStockAlerts = assetList.filter(a => a.stock_pct != null && a.stock_pct < 20).length;
   const critAlerts     = alerts.filter(a => a.severity === 'critical').length;
 
   // Zone footfall bar data
   const footfallBarData = zones.slice(0, 8).map(z => ({
     zone:     z.asset_id.replace(/zone_|zone-/i, 'Z'),
-    footfall: Math.round(z.footfall ?? 0),
+    footfall: Math.round(z.footfall_last_hour ?? z.footfall ?? 0),
   }));
 
   return (

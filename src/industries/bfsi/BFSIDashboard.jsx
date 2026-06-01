@@ -53,9 +53,9 @@ function AssetCard({ asset, selected, onClick }) {
       </div>
       <div style={{ display:'flex', justifyContent:'space-between', alignItems:'center' }}>
         <div>
-          {asset.tps != null && (
+          {asset.transactions_per_second != null && (
             <div style={{ fontSize:20, fontWeight:700, color:'#10b981', fontFamily:'monospace', lineHeight:1 }}>
-              {Number(asset.tps).toFixed(0)}
+              {Number(asset.transactions_per_second).toFixed(0)}
               <span style={{ fontSize:10, color:'#64748b', marginLeft:3 }}>TPS</span>
             </div>
           )}
@@ -81,14 +81,14 @@ function AssetCard({ asset, selected, onClick }) {
 
 function StreamDetail({ asset }) {
   const fields = [
-    { label: 'TPS',             val: asset.tps,                 unit: '' },
-    { label: 'Avg Latency',     val: asset.avg_latency_ms,      unit: 'ms' },
-    { label: 'P99 Latency',     val: asset.p99_latency_ms,      unit: 'ms' },
-    { label: 'Fraud Score',     val: asset.fraud_score,         unit: '' },
-    { label: 'Fraud Rate',      val: asset.fraud_pct,           unit: '%' },
-    { label: 'Blocked Txns',    val: asset.blocked_count,       unit: '' },
-    { label: 'Total Amount',    val: asset.total_amount_usd,    unit: 'USD' },
-    { label: 'Error Rate',      val: asset.error_rate_pct,      unit: '%' },
+    { label: 'TPS',             val: asset.transactions_per_second,     unit: '' },
+    { label: 'Avg Latency',     val: asset.avg_latency_ms,              unit: 'ms' },
+    { label: 'P99 Latency',     val: asset.p99_latency_ms,              unit: 'ms' },
+    { label: 'Fraud Score',     val: asset.fraud_score,                 unit: '' },
+    { label: 'Decline Rate',    val: asset.declined_transactions_pct,   unit: '%' },
+    { label: 'Fraud Alerts',    val: asset.fraud_alerts_last_min,       unit: '' },
+    { label: 'Total Value',     val: asset.total_value_last_min_inr,    unit: 'INR' },
+    { label: 'Error Rate',      val: asset.error_rate_pct,              unit: '%' },
   ];
   return <DetailGrid fields={fields} />;
 }
@@ -149,7 +149,7 @@ export default function BFSIDashboard() {
     if (!hasChanged) return;
     prevRef.current = assets;
 
-    const totalTPS    = streams.reduce((s, a) => s + (a.tps ?? 0), 0);
+    const totalTPS    = streams.reduce((s, a) => s + (a.transactions_per_second ?? 0), 0);
     const avgFraud    = streams.length ? (streams.reduce((s, a) => s + (a.fraud_score ?? 0), 0) / streams.length) : 0;
     const avgLatency  = streams.length ? (streams.reduce((s, a) => s + (a.avg_latency_ms ?? 0), 0) / streams.length).toFixed(1) : 0;
     const time        = new Date().toLocaleTimeString('en', { hour12:false, hour:'2-digit', minute:'2-digit', second:'2-digit' });
@@ -161,8 +161,8 @@ export default function BFSIDashboard() {
     }].slice(-MAX_HISTORY));
   }, [assets]);
 
-  const totalTPS     = streams.reduce((s, a) => s + (a.tps ?? 0), 0);
-  const totalBlocked = streams.reduce((s, a) => s + (a.blocked_count ?? 0), 0);
+  const totalTPS     = streams.reduce((s, a) => s + (a.transactions_per_second ?? 0), 0);
+  const totalBlocked = streams.reduce((s, a) => s + (a.fraud_alerts_last_min ?? 0), 0);
   const avgLatency   = streams.length ? Math.round(streams.reduce((s, a) => s + (a.avg_latency_ms ?? 0), 0) / streams.length) : 0;
   const critAlerts   = alerts.filter(a => a.severity === 'critical').length;
   const highRisk     = streams.filter(a => (a.fraud_score ?? 0) >= 0.7).length;
@@ -189,7 +189,7 @@ export default function BFSIDashboard() {
 
       <div style={{ display:'flex', gap:12, marginBottom:24, flexWrap:'wrap' }}>
         <KPICard label="Total TPS"          value={totalTPS.toFixed(0)}              color="#10b981" />
-        <KPICard label="Blocked Txns"       value={totalBlocked}                      color={totalBlocked > 0 ? '#ef4444' : '#22c55e'} />
+        <KPICard label="Fraud Alerts"        value={totalBlocked}                      color={totalBlocked > 0 ? '#ef4444' : '#22c55e'} />
         <KPICard label="High-Risk Streams"  value={highRisk}                          color={highRisk > 0 ? '#ef4444' : '#22c55e'} />
         <KPICard label="Avg Latency"        value={avgLatency}       unit=" ms"       color={avgLatency > 200 ? '#ef4444' : '#22c55e'} />
         <KPICard label="ATMs Online"        value={atms.length}                       color="#3b82f6" />

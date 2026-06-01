@@ -16,7 +16,7 @@ import {
 const MAX_HISTORY = 40;
 
 const ASSET_META = {
-  ev:               { icon: '🚗', label: 'Electric Vehicle',   primaryKey: 'soc_pct',             primaryUnit: '%',  primaryLabel: 'SOC' },
+  ev_vehicle:       { icon: '🚗', label: 'Electric Vehicle',   primaryKey: 'soc_pct',             primaryUnit: '%',  primaryLabel: 'SOC' },
   charging_station: { icon: '⚡', label: 'Charging Station',   primaryKey: 'power_delivery_kw',   primaryUnit: 'kW', primaryLabel: 'Power' },
 };
 
@@ -59,7 +59,7 @@ function AssetCard({ asset, selected, onClick }) {
       </div>
       <div style={{ display:'flex', justifyContent:'space-between', alignItems:'center' }}>
         <div>
-          {asset.asset_type === 'ev' ? (
+          {asset.asset_type === 'ev_vehicle' ? (
             <SocRing soc={asset.soc_pct ?? 0} size={54} />
           ) : (
             <div style={{ fontSize:18, fontWeight:700, color:'#3b82f6',
@@ -85,14 +85,14 @@ function AssetCard({ asset, selected, onClick }) {
 // ── Detail panels ──────────────────────────────────────────────
 function EVDetail({ asset }) {
   const fields = [
-    { label: 'SOC',            val: asset.soc_pct,             unit: '%' },
-    { label: 'Range',          val: asset.range_km,            unit: 'km' },
-    { label: 'Battery Temp',   val: asset.battery_temp_c,      unit: '°C' },
-    { label: 'Speed',          val: asset.speed_kmh,           unit: 'km/h' },
-    { label: 'Battery Health', val: asset.battery_health_pct,  unit: '%' },
-    { label: 'Charge State',   val: asset.charging_state,      unit: '' },
-    { label: 'Odometer',       val: asset.odometer_km,         unit: 'km' },
-    { label: 'Pack Voltage',   val: asset.pack_voltage_v,      unit: 'V' },
+    { label: 'SOC',            val: asset.soc_pct,               unit: '%' },
+    { label: 'Range',          val: asset.estimated_range_km,     unit: 'km' },
+    { label: 'Battery Temp',   val: asset.battery_temp_c,         unit: '°C' },
+    { label: 'Speed',          val: asset.speed_kmh,              unit: 'km/h' },
+    { label: 'Battery Health', val: asset.battery_health_pct,     unit: '%' },
+    { label: 'Charge State',   val: asset.charging_status,        unit: '' },
+    { label: 'Odometer',       val: asset.odometer_km,            unit: 'km' },
+    { label: 'Pack Voltage',   val: asset.battery_voltage_v,      unit: 'V' },
   ];
   return <DetailGrid fields={fields} />;
 }
@@ -131,7 +131,7 @@ function DetailGrid({ fields }) {
 }
 
 const DETAIL_COMPONENTS = {
-  ev:               EVDetail,
+  ev_vehicle:       EVDetail,
   charging_station: ChargingStationDetail,
 };
 
@@ -145,7 +145,7 @@ export default function EVDashboard() {
   const prevRef = useRef({});
 
   const assetList   = Object.values(assets);
-  const evs         = assetList.filter(a => a.asset_type === 'ev');
+  const evs         = assetList.filter(a => a.asset_type === 'ev_vehicle');
   const stations    = assetList.filter(a => a.asset_type === 'charging_station');
   const selectedObj = selectedAsset ? assets[selectedAsset] : null;
   const DetailComp  = selectedObj ? DETAIL_COMPONENTS[selectedObj.asset_type] : null;
@@ -163,7 +163,7 @@ export default function EVDashboard() {
   }, [assets]);
 
   const avgSoc         = evs.length ? Math.round(evs.reduce((s, a) => s + (a.soc_pct ?? 0), 0) / evs.length) : 0;
-  const chargingNow    = evs.filter(a => a.charging_state === 'charging').length;
+  const chargingNow    = evs.filter(a => a.charging_status === 'fast_charging' || a.charging_status === 'slow_charging').length;
   const totalPowerKW   = stations.reduce((s, a) => s + (a.power_delivery_kw ?? 0), 0).toFixed(1);
   const criticalAlerts = alerts.filter(a => a.severity === 'critical').length;
 
