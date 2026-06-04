@@ -10,7 +10,8 @@ import {
 import { useCondenseWS }  from '../../hooks/useCondenseWS.js';
 import { INDUSTRIES }     from '../../config/industries.js';
 import {
-  ConnectionStatus, KPICard, HealthGauge, AlertFeed, StatusBadge
+  ConnectionStatus, KPICard, AlertFeed, StatusBadge, HealthGauge,
+  DashboardHeader, RefreshButton,
 } from '../../components/shared.jsx';
 
 const MAX_HISTORY = 40; // data points kept in trend chart
@@ -29,6 +30,53 @@ function AssetCard({ asset, selected, onClick }) {
   const power  = meta.powerKey ? asset[meta.powerKey] : null;
   const health = asset.kpis?.health_score ?? 100;
 
+
+  // ── Not configured guard ─────────────────────────────────────────────────────
+  if (!industry.apiUrl) {
+    return (
+      <>
+      <div style={{ display:'flex', flexDirection:'column', alignItems:'center',
+        justifyContent:'center', minHeight:'70vh', gap:16, background:'#f8fafc',
+        fontFamily:'system-ui,sans-serif', padding:40 }}>
+        {/* Pulsing signal icon */}
+        <div style={{ position:'relative', width:72, height:72 }}>
+          <div style={{
+            position:'absolute', inset:0, borderRadius:'50%',
+            background:'rgba(37,125,240,0.08)',
+            animation:'ping 2s cubic-bezier(0,0,0.2,1) infinite',
+          }}/>
+          <div style={{
+            position:'relative', width:72, height:72, borderRadius:'50%',
+            background:'rgba(37,125,240,0.12)',
+            display:'flex', alignItems:'center', justifyContent:'center',
+          }}>
+            <svg width="32" height="32" viewBox="0 0 24 24" fill="none">
+              <path d="M3 12h2M19 12h2M12 3v2M12 19v2" stroke="#257df0" strokeWidth="2" strokeLinecap="round"/>
+              <circle cx="12" cy="12" r="3" fill="#257df0" opacity="0.7"/>
+              <path d="M5.6 5.6l1.4 1.4M16.9 16.9l1.4 1.4M5.6 18.4l1.4-1.4M16.9 7.1l1.4-1.4"
+                stroke="#257df0" strokeWidth="2" strokeLinecap="round" opacity="0.4"/>
+            </svg>
+          </div>
+        </div>
+
+        <div style={{ textAlign:'center' }}>
+          <div style={{ fontSize:17, fontWeight:700, color:'#1e293b', marginBottom:6 }}>
+            No Live Data Available
+          </div>
+          <div style={{ fontSize:13, color:'#94a3b8', maxWidth:280, lineHeight:1.6 }}>
+            This pipeline isn't connected yet. Deploy the simulator and processor on Condense to start seeing real-time data.
+          </div>
+        </div>
+
+        <div style={{ display:'flex', alignItems:'center', gap:8, marginTop:4 }}>
+          <span style={{ width:8, height:8, borderRadius:'50%', background:'#cbd5e1', display:'inline-block' }}/>
+          <span style={{ fontSize:12, color:'#94a3b8' }}>Waiting for connection</span>
+        </div>
+      </div>
+      <style>{`@keyframes ping { 75%,100% { transform:scale(2); opacity:0; } }`}</style>
+      </>
+    );
+  }
   return (
     <div onClick={onClick} style={{
       background: selected ? 'rgba(34,197,94,0.08)' : 'rgba(255,255,255,0.03)',
@@ -39,7 +87,7 @@ function AssetCard({ asset, selected, onClick }) {
       <div style={{ display:'flex', justifyContent:'space-between', alignItems:'flex-start', marginBottom:8 }}>
         <div>
           <span style={{ fontSize:18, marginRight:6 }}>{meta.icon}</span>
-          <span style={{ fontSize:12, fontWeight:600, color:'#cbd5e1' }}>{asset.asset_id}</span>
+          <span style={{ fontSize:12, fontWeight:600, color:'#475569' }}>{asset.asset_id}</span>
         </div>
         <StatusBadge status={asset.status} />
       </div>
@@ -84,11 +132,11 @@ function WindTurbineDetail({ asset }) {
     <div style={{ display:'grid', gridTemplateColumns:'repeat(auto-fill, minmax(130px,1fr))', gap:10 }}>
       {fields.map(f => (
         <div key={f.label} style={{
-          background:'rgba(255,255,255,0.03)', border:'1px solid rgba(255,255,255,0.06)',
+          background:'#ffffff', border:'1px solid #e2e8f0',
           borderRadius:8, padding:'10px 12px'
         }}>
           <div style={{ fontSize:10, color:'#64748b', marginBottom:4 }}>{f.label}</div>
-          <div style={{ fontSize:18, fontWeight:700, color:'#e2e8f0',
+          <div style={{ fontSize:18, fontWeight:700, color:'#1e293b',
             fontFamily:'monospace', fontVariantNumeric:'tabular-nums' }}>
             {f.val != null ? Number(f.val).toFixed(1) : '—'}
             <span style={{ fontSize:11, color:'#475569', marginLeft:3 }}>{f.unit}</span>
@@ -114,7 +162,7 @@ function SolarDetail({ asset }) {
     <div style={{ display:'grid', gridTemplateColumns:'repeat(auto-fill, minmax(130px,1fr))', gap:10 }}>
       {fields.map(f => (
         <div key={f.label} style={{
-          background:'rgba(255,255,255,0.03)', border:'1px solid rgba(255,255,255,0.06)',
+          background:'#ffffff', border:'1px solid #e2e8f0',
           borderRadius:8, padding:'10px 12px'
         }}>
           <div style={{ fontSize:10, color:'#64748b', marginBottom:4 }}>{f.label}</div>
@@ -144,11 +192,11 @@ function ScadaDetail({ asset }) {
     <div style={{ display:'grid', gridTemplateColumns:'repeat(auto-fill, minmax(130px,1fr))', gap:10 }}>
       {fields.map(f => (
         <div key={f.label} style={{
-          background:'rgba(255,255,255,0.03)', border:'1px solid rgba(255,255,255,0.06)',
+          background:'#ffffff', border:'1px solid #e2e8f0',
           borderRadius:8, padding:'10px 12px'
         }}>
           <div style={{ fontSize:10, color:'#64748b', marginBottom:4 }}>{f.label}</div>
-          <div style={{ fontSize:18, fontWeight:700, color:'#e2e8f0', fontFamily:'monospace' }}>
+          <div style={{ fontSize:18, fontWeight:700, color:'#1e293b', fontFamily:'monospace' }}>
             {f.val != null ? (typeof f.val === 'number' ? Number(f.val).toFixed(2) : String(f.val)) : '—'}
             <span style={{ fontSize:11, color:'#475569', marginLeft:3 }}>{f.unit}</span>
           </div>
@@ -173,7 +221,7 @@ function MeterDetail({ asset }) {
     <div style={{ display:'grid', gridTemplateColumns:'repeat(auto-fill, minmax(130px,1fr))', gap:10 }}>
       {fields.map(f => (
         <div key={f.label} style={{
-          background:'rgba(255,255,255,0.03)', border:'1px solid rgba(255,255,255,0.06)',
+          background:'#ffffff', border:'1px solid #e2e8f0',
           borderRadius:8, padding:'10px 12px'
         }}>
           <div style={{ fontSize:10, color:'#64748b', marginBottom:4 }}>{f.label}</div>
@@ -261,31 +309,16 @@ export default function EnergyDashboard() {
 
   return (
     <div style={{ padding:'24px 28px', minHeight:'100vh',
-      background:'#0a0f1a', color:'#e2e8f0', fontFamily:'system-ui, sans-serif' }}>
+      background:'#f1f5f9', color:'#1e293b', fontFamily:'system-ui, sans-serif' }}>
 
       {/* Header */}
-      <div style={{ display:'flex', justifyContent:'space-between', alignItems:'center', marginBottom:24 }}>
-        <div>
-          <div style={{ display:'flex', alignItems:'center', gap:10, marginBottom:4 }}>
-            <span style={{ fontSize:24 }}>⚡</span>
-            <h1 style={{ fontSize:20, fontWeight:700, color:'#f1f5f9', margin:0 }}>
-              Renewable Energy & Utilities
-            </h1>
-          </div>
-          <div style={{ fontSize:12, color:'#475569' }}>
-            Live streaming from Condense pipeline · {assetList.length} assets online
-          </div>
-        </div>
-        <div style={{ display:'flex', alignItems:'center', gap:16 }}>
-          <ConnectionStatus status={status} />
-          <button onClick={refresh} style={{
-            fontSize:11, padding:'6px 12px', borderRadius:6,
-            border:'1px solid rgba(255,255,255,0.1)',
-            background:'rgba(255,255,255,0.05)', color:'#94a3b8',
-            cursor:'pointer'
-          }}>↻ Refresh</button>
-        </div>
-      </div>
+      <DashboardHeader
+        industryId="energy"
+        title="Renewable Energy & Utilities"
+        subtitle={`Assets: ${assetList.length} · Alerts: ${alerts.length}`}
+        status={status}
+        onRefresh={refresh}
+      />
 
       {/* Fleet KPIs */}
       <div style={{ display:'flex', gap:12, marginBottom:24, flexWrap:'wrap' }}>
@@ -330,10 +363,10 @@ export default function EnergyDashboard() {
 
           {/* Power trend chart */}
           <div style={{
-            background:'rgba(255,255,255,0.02)', border:'1px solid rgba(255,255,255,0.07)',
+            background:'#ffffff', border:'1px solid #e2e8f0',
             borderRadius:12, padding:'16px 20px'
           }}>
-            <div style={{ fontSize:13, fontWeight:600, color:'#cbd5e1', marginBottom:14 }}>
+            <div style={{ fontSize:13, fontWeight:600, color:'#475569', marginBottom:14 }}>
               Live Power Output
             </div>
             {powerHistory.length < 2 ? (
@@ -352,17 +385,17 @@ export default function EnergyDashboard() {
                       </linearGradient>
                     ))}
                   </defs>
-                  <CartesianGrid strokeDasharray="3 3" stroke="rgba(255,255,255,0.05)" />
+                  <CartesianGrid strokeDasharray="3 3" stroke="#e2e8f0" />
                   <XAxis dataKey="time" tick={{ fontSize:10, fill:'#475569' }}
                     tickLine={false} axisLine={false} interval="preserveStartEnd"/>
                   <YAxis tick={{ fontSize:10, fill:'#475569' }}
                     tickLine={false} axisLine={false} width={40}/>
                   <Tooltip
                     contentStyle={{
-                      background:'#1e293b', border:'1px solid rgba(255,255,255,0.1)',
-                      borderRadius:8, fontSize:11, color:'#e2e8f0'
+                      background:'#ffffff', border:'1px solid #e2e8f0',
+                      borderRadius:8, fontSize:11, color:'#1e293b'
                     }}
-                    labelStyle={{ color:'#94a3b8' }}
+                    labelStyle={{ color:'#64748b' }}
                   />
                   {powerChartLines.map(l => (
                     <Area key={l.key} type="monotone" dataKey={l.key}
@@ -379,11 +412,11 @@ export default function EnergyDashboard() {
           {/* Selected asset detail */}
           {selectedObj && DetailComp && (
             <div style={{
-              background:'rgba(255,255,255,0.02)', border:'1px solid rgba(255,255,255,0.07)',
+              background:'#ffffff', border:'1px solid #e2e8f0',
               borderRadius:12, padding:'16px 20px'
             }}>
               <div style={{ display:'flex', justifyContent:'space-between', marginBottom:14 }}>
-                <div style={{ fontSize:13, fontWeight:600, color:'#cbd5e1' }}>
+                <div style={{ fontSize:13, fontWeight:600, color:'#475569' }}>
                   {ASSET_META[selectedObj.asset_type]?.icon} {selectedObj.asset_id}
                   <StatusBadge status={selectedObj.status} style={{ marginLeft:8 }} />
                 </div>

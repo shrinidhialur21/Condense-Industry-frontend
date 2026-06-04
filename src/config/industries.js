@@ -127,6 +127,32 @@ export const INDUSTRIES = {
     assetTypes:  ['patient_monitor', 'ventilator', 'infusion_pump', 'bed_sensor'],
   },
 
+  stockexchange: {
+    id:          'stockexchange',
+    name:        'Stock Exchange & Capital Markets',
+    shortName:   'Stock Exchange',
+    description: 'Equities, indices, RSI, VWAP, volatility — BVRD Dominican Republic',
+    icon:        '📈',
+    color:       '#6366f1',
+    colorMuted:  '#c7d2fe',
+    apiUrl:      import.meta.env.VITE_STOCKEXCHANGE_API_URL || '',
+    ready:       true,
+    assetTypes:  ['stock', 'market_index', 'sector_basket'],
+  },
+
+  travel: {
+    id:          'travel',
+    name:        'Travel & Hospitality',
+    shortName:   'Travel & Hotels',
+    description: 'Hotel rooms, F&B outlets, spa, guest feedback — Viva Resorts',
+    icon:        '🏨',
+    color:       '#10b981',
+    colorMuted:  '#a7f3d0',
+    apiUrl:      import.meta.env.VITE_TRAVEL_API_URL || '',
+    ready:       true,
+    assetTypes:  ['hotel_room', 'fnb_outlet', 'spa_service', 'guest_feedback', 'facility'],
+  },
+
 };
 
 export const INDUSTRY_LIST = Object.values(INDUSTRIES);

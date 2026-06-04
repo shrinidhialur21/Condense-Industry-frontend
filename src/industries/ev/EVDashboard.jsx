@@ -10,7 +10,8 @@ import {
 import { useCondenseWS } from '../../hooks/useCondenseWS.js';
 import { INDUSTRIES }    from '../../config/industries.js';
 import {
-  ConnectionStatus, KPICard, AlertFeed, StatusBadge, HealthGauge
+  ConnectionStatus, KPICard, AlertFeed, StatusBadge, HealthGauge,
+  DashboardHeader, RefreshButton,
 } from '../../components/shared.jsx';
 
 const MAX_HISTORY = 40;
@@ -26,6 +27,53 @@ function SocRing({ soc = 0, size = 54 }) {
   const circ = Math.PI * r;
   const fill = (Math.min(100, Math.max(0, soc)) / 100) * circ;
   const color = soc > 60 ? '#22c55e' : soc > 25 ? '#f59e0b' : '#ef4444';
+
+  // ── Not configured guard ─────────────────────────────────────────────────────
+  if (!industry.apiUrl) {
+    return (
+      <>
+      <div style={{ display:'flex', flexDirection:'column', alignItems:'center',
+        justifyContent:'center', minHeight:'70vh', gap:16, background:'#f8fafc',
+        fontFamily:'system-ui,sans-serif', padding:40 }}>
+        {/* Pulsing signal icon */}
+        <div style={{ position:'relative', width:72, height:72 }}>
+          <div style={{
+            position:'absolute', inset:0, borderRadius:'50%',
+            background:'rgba(37,125,240,0.08)',
+            animation:'ping 2s cubic-bezier(0,0,0.2,1) infinite',
+          }}/>
+          <div style={{
+            position:'relative', width:72, height:72, borderRadius:'50%',
+            background:'rgba(37,125,240,0.12)',
+            display:'flex', alignItems:'center', justifyContent:'center',
+          }}>
+            <svg width="32" height="32" viewBox="0 0 24 24" fill="none">
+              <path d="M3 12h2M19 12h2M12 3v2M12 19v2" stroke="#257df0" strokeWidth="2" strokeLinecap="round"/>
+              <circle cx="12" cy="12" r="3" fill="#257df0" opacity="0.7"/>
+              <path d="M5.6 5.6l1.4 1.4M16.9 16.9l1.4 1.4M5.6 18.4l1.4-1.4M16.9 7.1l1.4-1.4"
+                stroke="#257df0" strokeWidth="2" strokeLinecap="round" opacity="0.4"/>
+            </svg>
+          </div>
+        </div>
+
+        <div style={{ textAlign:'center' }}>
+          <div style={{ fontSize:17, fontWeight:700, color:'#1e293b', marginBottom:6 }}>
+            No Live Data Available
+          </div>
+          <div style={{ fontSize:13, color:'#94a3b8', maxWidth:280, lineHeight:1.6 }}>
+            This pipeline isn't connected yet. Deploy the simulator and processor on Condense to start seeing real-time data.
+          </div>
+        </div>
+
+        <div style={{ display:'flex', alignItems:'center', gap:8, marginTop:4 }}>
+          <span style={{ width:8, height:8, borderRadius:'50%', background:'#cbd5e1', display:'inline-block' }}/>
+          <span style={{ fontSize:12, color:'#94a3b8' }}>Waiting for connection</span>
+        </div>
+      </div>
+      <style>{`@keyframes ping { 75%,100% { transform:scale(2); opacity:0; } }`}</style>
+      </>
+    );
+  }
   return (
     <svg width={size} height={size / 2 + 8} style={{ overflow: 'visible' }}>
       <path d={`M 5 ${size/2} A ${r} ${r} 0 0 1 ${size-5} ${size/2}`}
@@ -53,7 +101,7 @@ function AssetCard({ asset, selected, onClick }) {
       <div style={{ display:'flex', justifyContent:'space-between', alignItems:'flex-start', marginBottom:8 }}>
         <div>
           <span style={{ fontSize:16, marginRight:6 }}>{meta.icon}</span>
-          <span style={{ fontSize:12, fontWeight:600, color:'#cbd5e1' }}>{asset.asset_id}</span>
+          <span style={{ fontSize:12, fontWeight:600, color:'#475569' }}>{asset.asset_id}</span>
         </div>
         <StatusBadge status={asset.status} />
       </div>
@@ -116,11 +164,11 @@ function DetailGrid({ fields }) {
     <div style={{ display:'grid', gridTemplateColumns:'repeat(auto-fill, minmax(130px,1fr))', gap:10 }}>
       {fields.map(f => (
         <div key={f.label} style={{
-          background:'rgba(255,255,255,0.03)', border:'1px solid rgba(255,255,255,0.06)',
+          background:'#ffffff', border:'1px solid #e2e8f0',
           borderRadius:8, padding:'10px 12px'
         }}>
           <div style={{ fontSize:10, color:'#64748b', marginBottom:4 }}>{f.label}</div>
-          <div style={{ fontSize:18, fontWeight:700, color:'#e2e8f0', fontFamily:'monospace' }}>
+          <div style={{ fontSize:18, fontWeight:700, color:'#1e293b', fontFamily:'monospace' }}>
             {f.val != null ? (typeof f.val === 'number' ? Number(f.val).toFixed(1) : String(f.val)) : '—'}
             {f.unit && <span style={{ fontSize:11, color:'#475569', marginLeft:3 }}>{f.unit}</span>}
           </div>
@@ -168,27 +216,15 @@ export default function EVDashboard() {
   const criticalAlerts = alerts.filter(a => a.severity === 'critical').length;
 
   return (
-    <div style={{ padding:'24px 28px', minHeight:'100vh', background:'#0a0f1a', color:'#e2e8f0', fontFamily:'system-ui,sans-serif' }}>
+    <div style={{ padding:'24px 28px', minHeight:'100vh', background:'#f1f5f9', color:'#1e293b', fontFamily:'system-ui,sans-serif' }}>
       {/* Header */}
-      <div style={{ display:'flex', justifyContent:'space-between', alignItems:'center', marginBottom:24 }}>
-        <div>
-          <div style={{ display:'flex', alignItems:'center', gap:10, marginBottom:4 }}>
-            <span style={{ fontSize:24 }}>🚗</span>
-            <h1 style={{ fontSize:20, fontWeight:700, color:'#f1f5f9', margin:0 }}>
-              EV & Connected Mobility
-            </h1>
-          </div>
-          <div style={{ fontSize:12, color:'#475569' }}>
-            Live fleet telemetry · {evs.length} EVs · {stations.length} charging stations
-          </div>
-        </div>
-        <div style={{ display:'flex', alignItems:'center', gap:16 }}>
-          <ConnectionStatus status={status} />
-          <button onClick={refresh} style={{ fontSize:11, padding:'6px 12px', borderRadius:6,
-            border:'1px solid rgba(255,255,255,0.1)', background:'rgba(255,255,255,0.05)',
-            color:'#94a3b8', cursor:'pointer' }}>↻ Refresh</button>
-        </div>
-      </div>
+      <DashboardHeader
+        industryId="ev"
+        title="EV & Connected Mobility"
+        subtitle={`EVs: ${evs.length} · Stations: ${stations.length}`}
+        status={status}
+        onRefresh={refresh}
+      />
 
       {/* KPIs */}
       <div style={{ display:'flex', gap:12, marginBottom:24, flexWrap:'wrap' }}>
@@ -222,9 +258,9 @@ export default function EVDashboard() {
         {/* Charts + detail */}
         <div style={{ display:'flex', flexDirection:'column', gap:16 }}>
           {/* SOC + Power trend */}
-          <div style={{ background:'rgba(255,255,255,0.02)', border:'1px solid rgba(255,255,255,0.07)',
+          <div style={{ background:'#ffffff', border:'1px solid #e2e8f0',
             borderRadius:12, padding:'16px 20px' }}>
-            <div style={{ fontSize:13, fontWeight:600, color:'#cbd5e1', marginBottom:14 }}>
+            <div style={{ fontSize:13, fontWeight:600, color:'#475569', marginBottom:14 }}>
               Fleet Avg SOC & Charging Power
             </div>
             {history.length < 2 ? (
@@ -243,11 +279,11 @@ export default function EVDashboard() {
                       <stop offset="95%" stopColor="#f59e0b" stopOpacity={0}/>
                     </linearGradient>
                   </defs>
-                  <CartesianGrid strokeDasharray="3 3" stroke="rgba(255,255,255,0.05)" />
+                  <CartesianGrid strokeDasharray="3 3" stroke="#e2e8f0" />
                   <XAxis dataKey="time" tick={{ fontSize:10, fill:'#475569' }} tickLine={false} axisLine={false} interval="preserveStartEnd"/>
                   <YAxis tick={{ fontSize:10, fill:'#475569' }} tickLine={false} axisLine={false} width={40}/>
-                  <Tooltip contentStyle={{ background:'#1e293b', border:'1px solid rgba(255,255,255,0.1)',
-                    borderRadius:8, fontSize:11, color:'#e2e8f0' }} labelStyle={{ color:'#94a3b8' }}/>
+                  <Tooltip contentStyle={{ background:'#ffffff', border:'1px solid #e2e8f0',
+                    borderRadius:8, fontSize:11, color:'#1e293b' }} labelStyle={{ color:'#64748b' }}/>
                   <Legend wrapperStyle={{ fontSize:11, color:'#64748b' }}/>
                   <Area type="monotone" dataKey="avgSoc"     name="Avg SOC %"       stroke="#3b82f6" fill="url(#gSoc)" strokeWidth={1.5} dot={false} isAnimationActive={false}/>
                   <Area type="monotone" dataKey="totalPower" name="Charge Power kW"  stroke="#f59e0b" fill="url(#gPow)" strokeWidth={1.5} dot={false} isAnimationActive={false}/>
@@ -258,10 +294,10 @@ export default function EVDashboard() {
 
           {/* Asset detail */}
           {selectedObj && DetailComp && (
-            <div style={{ background:'rgba(255,255,255,0.02)', border:'1px solid rgba(255,255,255,0.07)',
+            <div style={{ background:'#ffffff', border:'1px solid #e2e8f0',
               borderRadius:12, padding:'16px 20px' }}>
               <div style={{ display:'flex', justifyContent:'space-between', marginBottom:14 }}>
-                <div style={{ fontSize:13, fontWeight:600, color:'#cbd5e1' }}>
+                <div style={{ fontSize:13, fontWeight:600, color:'#475569' }}>
                   {ASSET_META[selectedObj.asset_type]?.icon} {selectedObj.asset_id}
                   <span style={{ marginLeft:8 }}><StatusBadge status={selectedObj.status} /></span>
                 </div>

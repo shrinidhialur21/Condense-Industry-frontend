@@ -9,7 +9,8 @@ import {
 import { useCondenseWS } from '../../hooks/useCondenseWS.js';
 import { INDUSTRIES }    from '../../config/industries.js';
 import {
-  ConnectionStatus, KPICard, AlertFeed, StatusBadge, HealthGauge
+  ConnectionStatus, KPICard, AlertFeed, StatusBadge, HealthGauge,
+  DashboardHeader, RefreshButton,
 } from '../../components/shared.jsx';
 
 const MAX_HISTORY = 40;
@@ -26,6 +27,53 @@ const ASSET_META = {
 function TempIndicator({ temp, minTemp = 2, maxTemp = 8 }) {
   const inRange = temp >= minTemp && temp <= maxTemp;
   const color   = inRange ? '#22c55e' : '#ef4444';
+
+  // ── Not configured guard ─────────────────────────────────────────────────────
+  if (!industry.apiUrl) {
+    return (
+      <>
+      <div style={{ display:'flex', flexDirection:'column', alignItems:'center',
+        justifyContent:'center', minHeight:'70vh', gap:16, background:'#f8fafc',
+        fontFamily:'system-ui,sans-serif', padding:40 }}>
+        {/* Pulsing signal icon */}
+        <div style={{ position:'relative', width:72, height:72 }}>
+          <div style={{
+            position:'absolute', inset:0, borderRadius:'50%',
+            background:'rgba(37,125,240,0.08)',
+            animation:'ping 2s cubic-bezier(0,0,0.2,1) infinite',
+          }}/>
+          <div style={{
+            position:'relative', width:72, height:72, borderRadius:'50%',
+            background:'rgba(37,125,240,0.12)',
+            display:'flex', alignItems:'center', justifyContent:'center',
+          }}>
+            <svg width="32" height="32" viewBox="0 0 24 24" fill="none">
+              <path d="M3 12h2M19 12h2M12 3v2M12 19v2" stroke="#257df0" strokeWidth="2" strokeLinecap="round"/>
+              <circle cx="12" cy="12" r="3" fill="#257df0" opacity="0.7"/>
+              <path d="M5.6 5.6l1.4 1.4M16.9 16.9l1.4 1.4M5.6 18.4l1.4-1.4M16.9 7.1l1.4-1.4"
+                stroke="#257df0" strokeWidth="2" strokeLinecap="round" opacity="0.4"/>
+            </svg>
+          </div>
+        </div>
+
+        <div style={{ textAlign:'center' }}>
+          <div style={{ fontSize:17, fontWeight:700, color:'#1e293b', marginBottom:6 }}>
+            No Live Data Available
+          </div>
+          <div style={{ fontSize:13, color:'#94a3b8', maxWidth:280, lineHeight:1.6 }}>
+            This pipeline isn't connected yet. Deploy the simulator and processor on Condense to start seeing real-time data.
+          </div>
+        </div>
+
+        <div style={{ display:'flex', alignItems:'center', gap:8, marginTop:4 }}>
+          <span style={{ width:8, height:8, borderRadius:'50%', background:'#cbd5e1', display:'inline-block' }}/>
+          <span style={{ fontSize:12, color:'#94a3b8' }}>Waiting for connection</span>
+        </div>
+      </div>
+      <style>{`@keyframes ping { 75%,100% { transform:scale(2); opacity:0; } }`}</style>
+      </>
+    );
+  }
   return (
     <span style={{ fontSize:14, fontWeight:700, fontFamily:'monospace', color }}>
       {temp != null ? `${Number(temp).toFixed(1)}°C` : '—'}
@@ -52,7 +100,7 @@ function AssetCard({ asset, selected, onClick }) {
       <div style={{ display:'flex', justifyContent:'space-between', alignItems:'flex-start', marginBottom:6 }}>
         <div>
           <span style={{ fontSize:16, marginRight:6 }}>{meta.icon}</span>
-          <span style={{ fontSize:12, fontWeight:600, color:'#cbd5e1' }}>{asset.asset_id}</span>
+          <span style={{ fontSize:12, fontWeight:600, color:'#475569' }}>{asset.asset_id}</span>
         </div>
         <StatusBadge status={asset.status} />
       </div>
@@ -67,7 +115,7 @@ function AssetCard({ asset, selected, onClick }) {
             <TempIndicator temp={assetTemp} />
           )}
           {asset.carrier && (
-            <div style={{ fontSize:11, color:'#94a3b8' }}>{asset.carrier}</div>
+            <div style={{ fontSize:11, color:'#64748b' }}>{asset.carrier}</div>
           )}
           <div style={{ fontSize:10, color:'#475569', marginTop:4 }}>
             {asset.origin_city && asset.destination_city
@@ -94,12 +142,12 @@ function DetailGrid({ fields }) {
   return (
     <div style={{ display:'grid', gridTemplateColumns:'repeat(auto-fill, minmax(130px,1fr))', gap:10 }}>
       {fields.map(f => (
-        <div key={f.label} style={{ background:'rgba(255,255,255,0.03)',
-          border:'1px solid rgba(255,255,255,0.06)', borderRadius:8, padding:'10px 12px' }}>
+        <div key={f.label} style={{ background:'#ffffff',
+          border:'1px solid #e2e8f0', borderRadius:8, padding:'10px 12px' }}>
           <div style={{ fontSize:10, color:'#64748b', marginBottom:4 }}>{f.label}</div>
           <div style={{ fontSize:16, fontWeight:700,
-            color: (f.label === 'On Time' && f.val === 'NO') ? '#ef4444' :
-                   (f.label === 'On Time' && f.val === 'YES') ? '#22c55e' : '#e2e8f0',
+            color: (f.label === 'On Time' && f.val === 'NO') ? '#dc2626' :
+                   (f.label === 'On Time' && f.val === 'YES') ? '#16a34a' : '#1e293b',
             fontFamily:'monospace' }}>
             {f.val != null ? (typeof f.val === 'number' ? Number(f.val).toFixed(1) : String(f.val)) : '—'}
             {f.unit && <span style={{ fontSize:11, color:'#475569', marginLeft:3 }}>{f.unit}</span>}
@@ -110,19 +158,44 @@ function DetailGrid({ fields }) {
   );
 }
 
-// delivery_vehicle detail — uses delivery_vehicle field names from simulator
+// delivery_vehicle detail — shows new KPIs + base fields
 function TruckDetail({ asset }) {
-  const fields = [
-    { label: 'Speed',          val: asset.speed_kmh,               unit: 'km/h' },
-    { label: 'Cargo Temp',     val: asset.cargo_temp_c,            unit: '°C' },
-    { label: 'Fuel Level',     val: asset.fuel_level_pct,          unit: '%' },
-    { label: 'Deliveries Done',val: asset.deliveries_completed,    unit: '' },
-    { label: 'Pending',        val: asset.deliveries_pending,      unit: '' },
-    { label: 'Next Stop ETA',  val: asset.next_stop_eta_min,       unit: 'min' },
-    { label: 'Harsh Brakes',   val: asset.harsh_brake_count,       unit: '' },
-    { label: 'On Time',        val: asset.on_time != null ? (asset.on_time ? 'YES' : 'NO') : null, unit: '' },
-  ];
-  return <DetailGrid fields={fields} />;
+  const k = asset.kpis || {};
+  const safetyColor = k.driver_safety_score >= 80 ? '#16a34a' : k.driver_safety_score >= 60 ? '#d97706' : '#dc2626';
+  return (
+    <div>
+      {/* Driver Safety + MTBF/MTTR hero row */}
+      <div style={{ display:'flex', gap:8, marginBottom:10 }}>
+        {[
+          { label:'Safety Score', val: k.driver_safety_score, unit:'/100', color: safetyColor },
+          { label:'MTBF',         val: k.mtbf_h,              unit:'h',    color:'#7c3aed' },
+          { label:'MTTR',         val: k.mttr_h,              unit:'h',    color:'#0284c7' },
+        ].map(item => (
+          <div key={item.label} style={{ flex:1, background:'#f8fafc', border:'1px solid #e2e8f0', borderRadius:8, padding:'8px 10px', textAlign:'center' }}>
+            <div style={{ fontSize:9, color:'#64748b', textTransform:'uppercase', letterSpacing:'0.06em' }}>{item.label}</div>
+            <div style={{ fontSize:18, fontWeight:800, color:item.color, fontFamily:'monospace', marginTop:2 }}>
+              {item.val != null ? Number(item.val).toFixed(1) : '—'}
+              {item.unit && <span style={{ fontSize:9, color:'#94a3b8', marginLeft:2 }}>{item.unit}</span>}
+            </div>
+          </div>
+        ))}
+      </div>
+      <DetailGrid fields={[
+        { label: 'Safety Rating',    val: k.safety_rating,                   unit: '' },
+        { label: 'Fuel Efficiency',  val: k.fuel_efficiency_kmpl,            unit: 'km/L' },
+        { label: 'Route Efficiency', val: k.route_efficiency_score,          unit: '' },
+        { label: 'Load Efficiency',  val: k.vehicle_load_efficiency_pct,     unit: '%' },
+        { label: 'Idle Ratio',       val: k.idle_ratio_pct,                  unit: '%' },
+        { label: 'Avg Speed',        val: k.avg_speed_kmh,                   unit: 'km/h' },
+        { label: 'Speed',            val: asset.speed_kmh,                   unit: 'km/h' },
+        { label: 'Fuel Level',       val: asset.fuel_level_pct,              unit: '%' },
+        { label: 'Deliveries Done',  val: asset.deliveries_completed,        unit: '' },
+        { label: 'Pending',          val: asset.deliveries_pending,          unit: '' },
+        { label: 'Harsh Brakes',     val: asset.harsh_brake_count,           unit: '' },
+        { label: 'On Time',          val: asset.on_time != null ? (asset.on_time ? 'YES' : 'NO') : null, unit: '' },
+      ]} />
+    </div>
+  );
 }
 
 // shipment detail — uses shipment field names from simulator
@@ -140,19 +213,43 @@ function ShipmentDetail({ asset }) {
   return <DetailGrid fields={fields} />;
 }
 
-// cold_chain detail — uses cold_chain field names from simulator
+// cold_chain detail — shows CCCS + base fields
 function ColdChainDetail({ asset }) {
-  const fields = [
-    { label: 'Current Temp',   val: asset.current_temp_c,         unit: '°C' },
-    { label: 'Set Point',      val: asset.set_point_c,            unit: '°C' },
-    { label: 'Deviation',      val: asset.temp_deviation_c,       unit: '°C' },
-    { label: 'Humidity',       val: asset.humidity_pct,           unit: '%' },
-    { label: 'Compressor',     val: asset.compressor_status,      unit: '' },
-    { label: 'Door Open',      val: asset.door_open ? 'YES' : 'NO', unit: '' },
-    { label: 'Excursions',     val: asset.excursion_count,        unit: '' },
-    { label: 'Battery Backup', val: asset.battery_backup_h,       unit: 'h' },
-  ];
-  return <DetailGrid fields={fields} />;
+  const k = asset.kpis || {};
+  const cccsColor = k.cold_chain_compliance_pct >= 90 ? '#16a34a' : k.cold_chain_compliance_pct >= 70 ? '#d97706' : '#dc2626';
+  return (
+    <div>
+      {/* Cold Chain Compliance hero */}
+      <div style={{ display:'flex', gap:8, marginBottom:10 }}>
+        <div style={{ flex:1, background: k.cold_chain_compliance_pct < 70 ? '#fee2e2' : '#f0fdf4',
+          border:`1px solid ${cccsColor}30`, borderRadius:8, padding:'10px 12px', textAlign:'center' }}>
+          <div style={{ fontSize:9, color:'#64748b', textTransform:'uppercase', letterSpacing:'0.06em' }}>Cold Chain Compliance</div>
+          <div style={{ fontSize:28, fontWeight:800, color:cccsColor, fontFamily:'monospace', marginTop:2 }}>
+            {k.cold_chain_compliance_pct != null ? `${k.cold_chain_compliance_pct.toFixed(0)}%` : '—'}
+          </div>
+          <div style={{ fontSize:9, color:'#64748b', marginTop:2 }}>
+            {k.temp_trend ? `Trend: ${k.temp_trend}` : ''}
+          </div>
+        </div>
+        <div style={{ flex:1, background:'#f8fafc', border:'1px solid #e2e8f0', borderRadius:8, padding:'10px 12px', textAlign:'center' }}>
+          <div style={{ fontSize:9, color:'#64748b', textTransform:'uppercase', letterSpacing:'0.06em' }}>Battery Reserve</div>
+          <div style={{ fontSize:16, fontWeight:700, color:'#0284c7', fontFamily:'monospace', marginTop:2 }}>
+            {k.battery_reserve_status || asset.battery_backup_h ? `${asset.battery_backup_h}h` : '—'}
+          </div>
+        </div>
+      </div>
+      <DetailGrid fields={[
+        { label: 'Current Temp',   val: asset.current_temp_c,         unit: '°C' },
+        { label: 'Set Point',      val: asset.set_point_c,            unit: '°C' },
+        { label: 'Deviation',      val: asset.temp_deviation_c,       unit: '°C' },
+        { label: 'Humidity',       val: asset.humidity_pct,           unit: '%' },
+        { label: 'Compressor',     val: asset.compressor_status,      unit: '' },
+        { label: 'Door Open',      val: asset.door_open ? 'YES' : 'NO', unit: '' },
+        { label: 'Excursions',     val: asset.excursion_count,        unit: '' },
+        { label: 'Battery Backup', val: asset.battery_backup_h,       unit: 'h' },
+      ]} />
+    </div>
+  );
 }
 
 const DETAIL_COMPONENTS = {
@@ -203,6 +300,14 @@ export default function LogisticsDashboard() {
   const coldChainOOR  = assetList.filter(a => { const t = getTemp(a); return t != null && (t < 2 || t > 8); }).length;
   const critAlerts    = alerts.filter(a => a.severity === 'critical').length;
 
+  // Driver Safety + MTBF fleet averages
+  const safetyVals = assetList.filter(a => a.kpis?.driver_safety_score != null).map(a => a.kpis.driver_safety_score);
+  const avgSafety  = safetyVals.length ? Math.round(safetyVals.reduce((s, v) => s + v, 0) / safetyVals.length) : null;
+  const mttfVals   = assetList.filter(a => a.kpis?.mtbf_h != null).map(a => a.kpis.mtbf_h);
+  const avgMTBF    = mttfVals.length ? (mttfVals.reduce((s, v) => s + v, 0) / mttfVals.length).toFixed(1) : null;
+  const cccsVals   = assetList.filter(a => a.kpis?.cold_chain_compliance_pct != null).map(a => a.kpis.cold_chain_compliance_pct);
+  const avgCCCS    = cccsVals.length ? Math.round(cccsVals.reduce((s, v) => s + v, 0) / cccsVals.length) : null;
+
   // Shipment status breakdown
   const statusCounts = ['in_transit','delivered','delayed','failed'].map(s => ({
     status: s,
@@ -210,32 +315,23 @@ export default function LogisticsDashboard() {
   }));
 
   return (
-    <div style={{ padding:'24px 28px', minHeight:'100vh', background:'#0a0f1a', color:'#e2e8f0', fontFamily:'system-ui,sans-serif' }}>
-      <div style={{ display:'flex', justifyContent:'space-between', alignItems:'center', marginBottom:24 }}>
-        <div>
-          <div style={{ display:'flex', alignItems:'center', gap:10, marginBottom:4 }}>
-            <span style={{ fontSize:24 }}>📦</span>
-            <h1 style={{ fontSize:20, fontWeight:700, color:'#f1f5f9', margin:0 }}>Logistics & Supply Chain</h1>
-          </div>
-          <div style={{ fontSize:12, color:'#475569' }}>
-            Live fleet tracking · {assetList.length} assets · {movingAssets.length} vehicles in motion
-          </div>
-        </div>
-        <div style={{ display:'flex', alignItems:'center', gap:16 }}>
-          <ConnectionStatus status={status} />
-          <button onClick={refresh} style={{ fontSize:11, padding:'6px 12px', borderRadius:6,
-            border:'1px solid rgba(255,255,255,0.1)', background:'rgba(255,255,255,0.05)',
-            color:'#94a3b8', cursor:'pointer' }}>↻ Refresh</button>
-        </div>
-      </div>
+    <div style={{ padding:'24px 28px', minHeight:'100vh', background:'#f1f5f9', color:'#1e293b', fontFamily:'system-ui,sans-serif' }}>
+      <DashboardHeader
+        industryId="logistics"
+        title="Logistics & Supply Chain"
+        subtitle={`Live fleet tracking · ${assetList.length} assets · ${movingAssets.length} vehicles in motion`}
+        status={status}
+        onRefresh={refresh}
+      />
 
       <div style={{ display:'flex', gap:12, marginBottom:24, flexWrap:'wrap' }}>
-        <KPICard label="Active Vehicles"   value={movingAssets.length}        color="#22c55e" />
-        <KPICard label="On-Time Rate"      value={onTimePct}     unit="%"     color={onTimePct >= 90 ? '#22c55e' : '#f59e0b'} />
-        <KPICard label="SLA Breaches"      value={slaBreaches}                color={slaBreaches > 0 ? '#ef4444' : '#22c55e'} />
-        <KPICard label="Cold Chain OOR"    value={coldChainOOR}               color={coldChainOOR > 0 ? '#ef4444' : '#22c55e'} />
-        <KPICard label="Total Assets"      value={assetList.length}           color="#f97316" />
-        <KPICard label="Critical Alerts"   value={critAlerts}                 color="#ef4444" />
+        <KPICard label="Active Vehicles"   value={movingAssets.length}                      color="#0284c7" sub={`of ${assetList.length} assets`} />
+        <KPICard label="On-Time Rate"      value={onTimePct}     unit="%"                   color={onTimePct >= 90 ? '#16a34a' : '#d97706'} />
+        <KPICard label="Driver Safety"     value={avgSafety ?? '—'} unit="/100"             color={avgSafety >= 80 ? '#16a34a' : avgSafety >= 60 ? '#d97706' : '#dc2626'} sub="Avg fleet safety score" />
+        <KPICard label="Fleet MTBF"        value={avgMTBF ?? '—'}   unit="h"               color="#7c3aed" sub="Mean Time To Failure" />
+        <KPICard label="Cold Chain CC"     value={avgCCCS != null ? `${avgCCCS}%` : '—'}   color={avgCCCS >= 90 ? '#16a34a' : avgCCCS >= 70 ? '#d97706' : '#dc2626'} sub="Compliance rate" />
+        <KPICard label="SLA Breaches"      value={slaBreaches}                              color={slaBreaches > 0 ? '#dc2626' : '#16a34a'} />
+        <KPICard label="Critical Alerts"   value={critAlerts}                               color={critAlerts > 0 ? '#dc2626' : '#64748b'} />
       </div>
 
       <div style={{ display:'grid', gridTemplateColumns:'280px 1fr', gap:20, marginBottom:20 }}>
@@ -259,9 +355,9 @@ export default function LogisticsDashboard() {
         <div style={{ display:'flex', flexDirection:'column', gap:16 }}>
           <div style={{ display:'grid', gridTemplateColumns:'1fr 1fr', gap:16 }}>
             {/* Cold chain temp trend */}
-            <div style={{ background:'rgba(255,255,255,0.02)', border:'1px solid rgba(255,255,255,0.07)',
+            <div style={{ background:'#ffffff', border:'1px solid #e2e8f0',
               borderRadius:12, padding:'16px 20px' }}>
-              <div style={{ fontSize:13, fontWeight:600, color:'#cbd5e1', marginBottom:14 }}>
+              <div style={{ fontSize:13, fontWeight:600, color:'#475569', marginBottom:14 }}>
                 ❄️ Cold Chain Temp & On-Time %
               </div>
               {history.length < 2 ? (
@@ -270,11 +366,11 @@ export default function LogisticsDashboard() {
               ) : (
                 <ResponsiveContainer width="100%" height={160}>
                   <LineChart data={history} margin={{ top:5, right:10, bottom:5, left:0 }}>
-                    <CartesianGrid strokeDasharray="3 3" stroke="rgba(255,255,255,0.05)" />
+                    <CartesianGrid strokeDasharray="3 3" stroke="#e2e8f0" />
                     <XAxis dataKey="time" tick={{ fontSize:9, fill:'#475569' }} tickLine={false} axisLine={false} interval="preserveStartEnd"/>
                     <YAxis tick={{ fontSize:9, fill:'#475569' }} tickLine={false} axisLine={false} width={35}/>
-                    <Tooltip contentStyle={{ background:'#1e293b', border:'1px solid rgba(255,255,255,0.1)',
-                      borderRadius:8, fontSize:11, color:'#e2e8f0' }}/>
+                    <Tooltip contentStyle={{ background:'#ffffff', border:'1px solid #e2e8f0',
+                      borderRadius:8, fontSize:11, color:'#1e293b' }}/>
                     <Legend wrapperStyle={{ fontSize:10, color:'#64748b' }}/>
                     <Line type="monotone" dataKey="avgTemp"   name="Avg Temp °C"   stroke="#06b6d4" strokeWidth={2} dot={false} isAnimationActive={false}/>
                     <Line type="monotone" dataKey="onTimePct" name="On-Time %"      stroke="#22c55e" strokeWidth={2} dot={false} isAnimationActive={false}/>
@@ -284,18 +380,18 @@ export default function LogisticsDashboard() {
             </div>
 
             {/* Shipment status bar */}
-            <div style={{ background:'rgba(255,255,255,0.02)', border:'1px solid rgba(255,255,255,0.07)',
+            <div style={{ background:'#ffffff', border:'1px solid #e2e8f0',
               borderRadius:12, padding:'16px 20px' }}>
-              <div style={{ fontSize:13, fontWeight:600, color:'#cbd5e1', marginBottom:14 }}>
+              <div style={{ fontSize:13, fontWeight:600, color:'#475569', marginBottom:14 }}>
                 Shipment Status Breakdown
               </div>
               <ResponsiveContainer width="100%" height={160}>
                 <BarChart data={statusCounts} margin={{ top:5, right:10, bottom:5, left:0 }}>
-                  <CartesianGrid strokeDasharray="3 3" stroke="rgba(255,255,255,0.05)" />
+                  <CartesianGrid strokeDasharray="3 3" stroke="#e2e8f0" />
                   <XAxis dataKey="status" tick={{ fontSize:9, fill:'#475569' }} tickLine={false} axisLine={false}/>
                   <YAxis tick={{ fontSize:9, fill:'#475569' }} tickLine={false} axisLine={false} width={30}/>
-                  <Tooltip contentStyle={{ background:'#1e293b', border:'1px solid rgba(255,255,255,0.1)',
-                    borderRadius:8, fontSize:11, color:'#e2e8f0' }}/>
+                  <Tooltip contentStyle={{ background:'#ffffff', border:'1px solid #e2e8f0',
+                    borderRadius:8, fontSize:11, color:'#1e293b' }}/>
                   <Bar dataKey="count" name="Count" fill="#f97316" radius={[4,4,0,0]} isAnimationActive={false}/>
                 </BarChart>
               </ResponsiveContainer>
@@ -303,10 +399,10 @@ export default function LogisticsDashboard() {
           </div>
 
           {selectedObj && DetailComp && (
-            <div style={{ background:'rgba(255,255,255,0.02)', border:'1px solid rgba(255,255,255,0.07)',
+            <div style={{ background:'#ffffff', border:'1px solid #e2e8f0',
               borderRadius:12, padding:'16px 20px' }}>
               <div style={{ display:'flex', justifyContent:'space-between', marginBottom:14 }}>
-                <div style={{ fontSize:13, fontWeight:600, color:'#cbd5e1' }}>
+                <div style={{ fontSize:13, fontWeight:600, color:'#475569' }}>
                   {ASSET_META[selectedObj.asset_type]?.icon ?? '📦'} {selectedObj.asset_id}
                   <span style={{ marginLeft:8 }}><StatusBadge status={selectedObj.status} /></span>
                 </div>
