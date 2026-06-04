@@ -32,8 +32,8 @@ function AssetCard({ asset, selected, onClick }) {
 
   return (
     <div onClick={onClick} style={{
-      background: selected ? 'rgba(34,197,94,0.08)' : 'rgba(255,255,255,0.03)',
-      border: `1px solid ${selected ? 'rgba(34,197,94,0.4)' : 'rgba(255,255,255,0.07)'}`,
+      background: selected ? 'rgba(34,197,94,0.08)' : '#ffffff',
+      border: `1px solid ${selected ? 'rgba(34,197,94,0.4)' : '#e2e8f0'}`,
       borderRadius:10, padding:'12px 14px', cursor:'pointer',
       transition:'all 0.15s', userSelect:'none'
     }}>
@@ -341,7 +341,7 @@ export default function EnergyDashboard() {
           </div>
           {assetList.length === 0 ? (
             <div style={{ textAlign:'center', padding:40, color:'#334155', fontSize:13,
-              border:'1px dashed rgba(255,255,255,0.06)', borderRadius:10 }}>
+              border:'1px dashed #cbd5e1', borderRadius:10 }}>
               {status === 'connecting' ? 'Connecting to pipeline…' : 'No assets yet. Start the simulator.'}
             </div>
           ) : (

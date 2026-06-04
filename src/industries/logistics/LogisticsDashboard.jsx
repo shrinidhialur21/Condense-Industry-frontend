@@ -46,8 +46,8 @@ function AssetCard({ asset, selected, onClick }) {
   const slaFail   = asset.on_time === false;
   return (
     <div onClick={onClick} style={{
-      background: selected ? 'rgba(249,115,22,0.08)' : 'rgba(255,255,255,0.03)',
-      border: `1px solid ${selected ? 'rgba(249,115,22,0.4)' : 'rgba(255,255,255,0.07)'}`,
+      background: selected ? 'rgba(249,115,22,0.08)' : '#ffffff',
+      border: `1px solid ${selected ? 'rgba(249,115,22,0.4)' : '#e2e8f0'}`,
       borderRadius:10, padding:'12px 14px', cursor:'pointer', transition:'all 0.15s'
     }}>
       <div style={{ display:'flex', justifyContent:'space-between', alignItems:'flex-start', marginBottom:6 }}>
@@ -340,7 +340,7 @@ export default function LogisticsDashboard() {
             letterSpacing:'0.06em', marginBottom:4 }}>Fleet ({assetList.length})</div>
           {assetList.length === 0 ? (
             <div style={{ textAlign:'center', padding:40, color:'#334155', fontSize:13,
-              border:'1px dashed rgba(255,255,255,0.06)', borderRadius:10 }}>
+              border:'1px dashed #cbd5e1', borderRadius:10 }}>
               {status === 'connecting' ? 'Connecting…' : 'No assets. Start the simulator.'}
             </div>
           ) : (

@@ -82,11 +82,11 @@ function HotelRoomCard({ asset, selected, onClick }) {
     ? 'rgba(239,68,68,0.35)'
     : selected
       ? 'rgba(16,185,129,0.4)'
-      : 'rgba(255,255,255,0.07)';
+      : '#e2e8f0';
 
   return (
     <div onClick={onClick} style={{
-      background: selected ? 'rgba(16,185,129,0.07)' : 'rgba(255,255,255,0.02)',
+      background: selected ? 'rgba(16,185,129,0.07)' : '#ffffff',
       border: `1px solid ${borderColor}`,
       borderRadius: 10, padding: '10px 12px', cursor: 'pointer',
       transition: 'all 0.15s', minWidth: 0,
@@ -133,8 +133,8 @@ function FnBCard({ asset, selected, onClick }) {
 
   return (
     <div onClick={onClick} style={{
-      background: selected ? 'rgba(245,158,11,0.07)' : 'rgba(255,255,255,0.02)',
-      border: `1px solid ${selected ? 'rgba(245,158,11,0.4)' : 'rgba(255,255,255,0.07)'}`,
+      background: selected ? 'rgba(245,158,11,0.07)' : '#ffffff',
+      border: `1px solid ${selected ? 'rgba(245,158,11,0.4)' : '#e2e8f0'}`,
       borderRadius: 10, padding: '10px 12px', cursor: 'pointer', transition: 'all 0.15s',
     }}>
       <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', marginBottom: 5 }}>
@@ -170,8 +170,8 @@ function SpaCard({ asset, selected, onClick }) {
 
   return (
     <div onClick={onClick} style={{
-      background: selected ? 'rgba(139,92,246,0.07)' : 'rgba(255,255,255,0.02)',
-      border: `1px solid ${selected ? 'rgba(139,92,246,0.4)' : 'rgba(255,255,255,0.07)'}`,
+      background: selected ? 'rgba(139,92,246,0.07)' : '#ffffff',
+      border: `1px solid ${selected ? 'rgba(139,92,246,0.4)' : '#e2e8f0'}`,
       borderRadius: 10, padding: '10px 12px', cursor: 'pointer', transition: 'all 0.15s',
     }}>
       <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', marginBottom: 5 }}>
@@ -210,8 +210,8 @@ function FeedbackCard({ asset, selected, onClick }) {
 
   return (
     <div onClick={onClick} style={{
-      background: selected ? 'rgba(236,72,153,0.07)' : 'rgba(255,255,255,0.02)',
-      border: `1px solid ${selected ? 'rgba(236,72,153,0.4)' : 'rgba(255,255,255,0.07)'}`,
+      background: selected ? 'rgba(236,72,153,0.07)' : '#ffffff',
+      border: `1px solid ${selected ? 'rgba(236,72,153,0.4)' : '#e2e8f0'}`,
       borderRadius: 10, padding: '10px 12px', cursor: 'pointer', transition: 'all 0.15s',
     }}>
       <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', marginBottom: 5 }}>
@@ -242,8 +242,8 @@ function FacilityCard({ asset, selected, onClick }) {
 
   return (
     <div onClick={onClick} style={{
-      background: selected ? 'rgba(6,182,212,0.07)' : 'rgba(255,255,255,0.02)',
-      border: `1px solid ${selected ? 'rgba(6,182,212,0.4)' : 'rgba(255,255,255,0.07)'}`,
+      background: selected ? 'rgba(6,182,212,0.07)' : '#ffffff',
+      border: `1px solid ${selected ? 'rgba(6,182,212,0.4)' : '#e2e8f0'}`,
       borderRadius: 10, padding: '10px 12px', cursor: 'pointer', transition: 'all 0.15s',
     }}>
       <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', marginBottom: 5 }}>
@@ -470,7 +470,7 @@ function SectionHeader({ icon, title, count, color }) {
       <span style={{ fontSize: 16 }}>{icon}</span>
       <span style={{ fontSize: 13, fontWeight: 700, color: '#475569' }}>{title}</span>
       {count != null && (
-        <span style={{ fontSize: 10, color: '#64748b', background: 'rgba(255,255,255,0.06)',
+        <span style={{ fontSize: 10, color: '#64748b', background: '#e2e8f0',
           padding: '2px 6px', borderRadius: 4 }}>{count}</span>
       )}
     </div>

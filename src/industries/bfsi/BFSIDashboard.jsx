@@ -71,7 +71,7 @@ function AssetCard({ asset, selected, onClick }) {
           ? "rgba(16,185,129,0.08)"
           : "rgba(255,255,255,0.03)",
         border: `1px solid ${
-          selected ? "rgba(16,185,129,0.4)" : "rgba(255,255,255,0.07)"
+          selected ? "rgba(16,185,129,0.4)" : "#e2e8f0"
         }`,
         borderRadius: 10,
         padding: "12px 14px",

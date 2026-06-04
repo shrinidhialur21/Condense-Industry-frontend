@@ -103,7 +103,7 @@ function AssetCard({ asset, selected, onClick }) {
             ? "rgba(239,68,68,0.5)"
             : isCritical
             ? "rgba(239,68,68,0.25)"
-            : "rgba(255,255,255,0.07)"
+            : "#e2e8f0"
         }`,
         borderRadius: 10,
         padding: "12px 14px",
