@@ -20,6 +20,7 @@ export default defineConfig({
           const industries = [
             'ev', 'automotive', 'aviation', 'manufacturing',
             'logistics', 'bfsi', 'retail', 'healthcare', 'energy',
+            'stockexchange', 'travel',
           ];
           for (const ind of industries) {
             if (id.includes(`/industries/${ind}/`)) return `industry-${ind}`;
