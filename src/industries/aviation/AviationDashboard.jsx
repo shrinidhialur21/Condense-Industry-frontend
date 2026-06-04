@@ -46,53 +46,6 @@ const FLIGHT_STATUS_COLOR = {
 
 function FlightStatusBadge({ status }) {
   const color = FLIGHT_STATUS_COLOR[status] || "#64748b";
-
-  // ── Not configured guard ─────────────────────────────────────────────────────
-  if (!industry.apiUrl) {
-    return (
-      <>
-      <div style={{ display:'flex', flexDirection:'column', alignItems:'center',
-        justifyContent:'center', minHeight:'70vh', gap:16, background:'#f8fafc',
-        fontFamily:'system-ui,sans-serif', padding:40 }}>
-        {/* Pulsing signal icon */}
-        <div style={{ position:'relative', width:72, height:72 }}>
-          <div style={{
-            position:'absolute', inset:0, borderRadius:'50%',
-            background:'rgba(37,125,240,0.08)',
-            animation:'ping 2s cubic-bezier(0,0,0.2,1) infinite',
-          }}/>
-          <div style={{
-            position:'relative', width:72, height:72, borderRadius:'50%',
-            background:'rgba(37,125,240,0.12)',
-            display:'flex', alignItems:'center', justifyContent:'center',
-          }}>
-            <svg width="32" height="32" viewBox="0 0 24 24" fill="none">
-              <path d="M3 12h2M19 12h2M12 3v2M12 19v2" stroke="#257df0" strokeWidth="2" strokeLinecap="round"/>
-              <circle cx="12" cy="12" r="3" fill="#257df0" opacity="0.7"/>
-              <path d="M5.6 5.6l1.4 1.4M16.9 16.9l1.4 1.4M5.6 18.4l1.4-1.4M16.9 7.1l1.4-1.4"
-                stroke="#257df0" strokeWidth="2" strokeLinecap="round" opacity="0.4"/>
-            </svg>
-          </div>
-        </div>
-
-        <div style={{ textAlign:'center' }}>
-          <div style={{ fontSize:17, fontWeight:700, color:'#1e293b', marginBottom:6 }}>
-            No Live Data Available
-          </div>
-          <div style={{ fontSize:13, color:'#94a3b8', maxWidth:280, lineHeight:1.6 }}>
-            This pipeline isn't connected yet. Deploy the simulator and processor on Condense to start seeing real-time data.
-          </div>
-        </div>
-
-        <div style={{ display:'flex', alignItems:'center', gap:8, marginTop:4 }}>
-          <span style={{ width:8, height:8, borderRadius:'50%', background:'#cbd5e1', display:'inline-block' }}/>
-          <span style={{ fontSize:12, color:'#94a3b8' }}>Waiting for connection</span>
-        </div>
-      </div>
-      <style>{`@keyframes ping { 75%,100% { transform:scale(2); opacity:0; } }`}</style>
-      </>
-    );
-  }
   return (
     <span
       style={{
@@ -340,6 +293,53 @@ export default function AviationDashboard() {
     { range: "30+ min", count: flights.filter((a) => a.delay_min > 30).length },
   ];
 
+
+  // ── Not configured guard ─────────────────────────────────────────────────────
+  if (!industry.apiUrl) {
+    return (
+      <>
+      <div style={{ display:'flex', flexDirection:'column', alignItems:'center',
+        justifyContent:'center', minHeight:'70vh', gap:16, background:'#f8fafc',
+        fontFamily:'system-ui,sans-serif', padding:40 }}>
+        {/* Pulsing signal icon */}
+        <div style={{ position:'relative', width:72, height:72 }}>
+          <div style={{
+            position:'absolute', inset:0, borderRadius:'50%',
+            background:'rgba(37,125,240,0.08)',
+            animation:'ping 2s cubic-bezier(0,0,0.2,1) infinite',
+          }}/>
+          <div style={{
+            position:'relative', width:72, height:72, borderRadius:'50%',
+            background:'rgba(37,125,240,0.12)',
+            display:'flex', alignItems:'center', justifyContent:'center',
+          }}>
+            <svg width="32" height="32" viewBox="0 0 24 24" fill="none">
+              <path d="M3 12h2M19 12h2M12 3v2M12 19v2" stroke="#257df0" strokeWidth="2" strokeLinecap="round"/>
+              <circle cx="12" cy="12" r="3" fill="#257df0" opacity="0.7"/>
+              <path d="M5.6 5.6l1.4 1.4M16.9 16.9l1.4 1.4M5.6 18.4l1.4-1.4M16.9 7.1l1.4-1.4"
+                stroke="#257df0" strokeWidth="2" strokeLinecap="round" opacity="0.4"/>
+            </svg>
+          </div>
+        </div>
+
+        <div style={{ textAlign:'center' }}>
+          <div style={{ fontSize:17, fontWeight:700, color:'#1e293b', marginBottom:6 }}>
+            No Live Data Available
+          </div>
+          <div style={{ fontSize:13, color:'#94a3b8', maxWidth:280, lineHeight:1.6 }}>
+            This pipeline isn't connected yet. Deploy the simulator and processor on Condense to start seeing real-time data.
+          </div>
+        </div>
+
+        <div style={{ display:'flex', alignItems:'center', gap:8, marginTop:4 }}>
+          <span style={{ width:8, height:8, borderRadius:'50%', background:'#cbd5e1', display:'inline-block' }}/>
+          <span style={{ fontSize:12, color:'#94a3b8' }}>Waiting for connection</span>
+        </div>
+      </div>
+      <style>{`@keyframes ping { 75%,100% { transform:scale(2); opacity:0; } }`}</style>
+      </>
+    );
+  }
   return (
     <div
       style={{
