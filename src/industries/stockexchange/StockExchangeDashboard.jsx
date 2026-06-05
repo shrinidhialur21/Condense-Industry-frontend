@@ -21,6 +21,17 @@ const CONDENSE_BLUE = '#257df0';
 // ── Helpers ───────────────────────────────────────────────────────────────────
 function fmt(v, dec = 1) { return v != null && !isNaN(v) ? Number(v).toFixed(dec) : '—'; }
 
+// Smart compact number formatter — keeps KPI card values short
+// 134,764,300 → "134.8M"  |  1,300,000,000 → "1.3B"  |  85,400 → "85.4K"  |  999 → "999"
+function compact(v) {
+  if (v == null || isNaN(v)) return '—';
+  const n = Number(v);
+  if (n >= 1e9)  return `${(n / 1e9).toFixed(1)}B`;
+  if (n >= 1e6)  return `${(n / 1e6).toFixed(1)}M`;
+  if (n >= 1e4)  return `${(n / 1e3).toFixed(1)}K`;
+  return n.toLocaleString();
+}
+
 function RiskBadge({ level }) {
   const map = {
     critical    : { bg: '#fee2e2', color: '#dc2626', label: 'CRITICAL' },
@@ -211,15 +222,13 @@ export default function StockExchangeDashboard() {
         />
         <KPICard
           label="Session Trades"
-          value={session?.session_total_trades?.toLocaleString() ?? '—'}
+          value={compact(session?.session_total_trades)}
           color="#7c3aed"
-          sub="Cumulative today"
+          sub={session?.session_total_trades?.toLocaleString() ?? '—'}
         />
         <KPICard
           label="Session Value (DOP)"
-          value={session?.session_total_value_dop
-            ? `${(session.session_total_value_dop / 1e6).toFixed(1)}M`
-            : '—'}
+          value={compact(session?.session_total_value_dop)}
           color="#0891b2"
           sub="Total traded value"
         />
@@ -435,7 +444,7 @@ export default function StockExchangeDashboard() {
                           {s.trades_count?.toLocaleString()}
                         </div>
                         <div style={{ fontSize: 10, color: '#94a3b8' }}>
-                          {((s.value_dop || 0) / 1e6).toFixed(1)}M DOP
+                          {compact(s.value_dop)} DOP
                         </div>
                       </div>
                     </div>
@@ -507,7 +516,7 @@ export default function StockExchangeDashboard() {
                           {b.trades_today?.toLocaleString()}
                         </td>
                         <td style={{ padding: '8px 10px', fontFamily: 'monospace', color: '#475569' }}>
-                          {b.value_today_dop ? `${(b.value_today_dop / 1e6).toFixed(1)}M` : '—'}
+                          {compact(b.value_today_dop)}
                         </td>
                         <td style={{ padding: '8px 10px', fontFamily: 'monospace',
                           color: b.rejection_rate_pct > 5 ? '#dc2626' : '#475569' }}>

@@ -52,20 +52,28 @@ export function ConnectionStatus({ status }) {
 
 // ── KPI Card ──────────────────────────────────────────────────
 export function KPICard({ label, value, unit, trend, color = '#0284c7', sub }) {
+  // Auto-shrink font for long values so they never overflow the card
+  const strLen   = String(value ?? '—').length;
+  const fontSize = strLen > 8 ? 20 : strLen > 6 ? 24 : 28;
+
   return (
     <div style={{
       background:'#ffffff', border:'1px solid #e2e8f0',
       borderRadius:12, padding:'16px 20px', minWidth:140, flex:'1 1 140px',
       boxShadow:'0 1px 4px rgba(15,32,68,0.06)',
+      overflow: 'hidden',
     }}>
       <div style={{ fontSize:11, color:'#64748b', textTransform:'uppercase',
-        letterSpacing:'0.08em', marginBottom:6 }}>{label}</div>
-      <div style={{ fontSize:28, fontWeight:700, color, lineHeight:1,
-        fontVariantNumeric:'tabular-nums', fontFamily:'monospace' }}>
+        letterSpacing:'0.08em', marginBottom:6, whiteSpace:'nowrap',
+        overflow:'hidden', textOverflow:'ellipsis' }}>{label}</div>
+      <div style={{ fontSize, fontWeight:700, color, lineHeight:1,
+        fontVariantNumeric:'tabular-nums', fontFamily:'monospace',
+        whiteSpace:'nowrap', overflow:'hidden', textOverflow:'ellipsis' }}>
         {value ?? '—'}
-        {unit && <span style={{ fontSize:13, fontWeight:400, color:'#94a3b8', marginLeft:4 }}>{unit}</span>}
+        {unit && <span style={{ fontSize: Math.round(fontSize * 0.46), fontWeight:400, color:'#94a3b8', marginLeft:4 }}>{unit}</span>}
       </div>
-      {sub && <div style={{ fontSize:11, color:'#64748b', marginTop:4 }}>{sub}</div>}
+      {sub && <div style={{ fontSize:11, color:'#64748b', marginTop:4,
+        whiteSpace:'nowrap', overflow:'hidden', textOverflow:'ellipsis' }}>{sub}</div>}
       {trend !== undefined && (
         <div style={{ fontSize:11, marginTop:4, color: trend >= 0 ? '#16a34a' : '#dc2626' }}>
           {trend >= 0 ? '▲' : '▼'} {Math.abs(trend)}%
