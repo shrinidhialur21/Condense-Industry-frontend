@@ -16,6 +16,7 @@ import {
 } from "recharts";
 import { useCondenseWS } from "../../hooks/useCondenseWS.js";
 import { INDUSTRIES } from "../../config/industries.js";
+import { useWindowSize } from "../../hooks/useWindowSize.js";
 import {
   ConnectionStatus,
   KPICard,
@@ -217,6 +218,7 @@ function VehicleDetail({ asset }) {
 export default function AutomotiveDashboard() {
   const industry = INDUSTRIES.automotive;
   const { status, assets, alerts, refresh } = useCondenseWS(industry.apiUrl);
+  const { isMobile, isTablet, isTV } = useWindowSize();
 
   const [selectedAsset, setSelectedAsset] = useState(null);
   const [history, setHistory] = useState([]);
@@ -320,7 +322,7 @@ export default function AutomotiveDashboard() {
   return (
     <div
       style={{
-        padding: "24px 28px",
+        padding: isMobile ? "12px 14px" : isTV ? "32px 40px" : "24px 28px",
         minHeight: "100vh",
         background: "#f1f5f9",
         color: "#1e293b",
@@ -366,7 +368,7 @@ export default function AutomotiveDashboard() {
       <div
         style={{
           display: "grid",
-          gridTemplateColumns: "280px 1fr",
+          gridTemplateColumns: isMobile || isTablet ? "1fr" : "280px 1fr",
           gap: 20,
           marginBottom: 20,
         }}

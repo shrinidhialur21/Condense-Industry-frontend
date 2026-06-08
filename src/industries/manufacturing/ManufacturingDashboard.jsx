@@ -8,6 +8,7 @@ import {
 } from 'recharts';
 import { useCondenseWS } from '../../hooks/useCondenseWS.js';
 import { INDUSTRIES }    from '../../config/industries.js';
+import { useWindowSize } from '../../hooks/useWindowSize.js';
 import {
   ConnectionStatus, KPICard, AlertFeed, StatusBadge, HealthGauge,
   DashboardHeader, RefreshButton,
@@ -174,6 +175,7 @@ function MachineDetail({ asset }) {
 export default function ManufacturingDashboard() {
   const industry = INDUSTRIES.manufacturing;
   const { status, assets, alerts, refresh } = useCondenseWS(industry.apiUrl);
+  const { isMobile, isTablet, isTV } = useWindowSize();
 
   const [selectedAsset, setSelectedAsset] = useState(null);
   const [history, setHistory]             = useState([]);
@@ -263,7 +265,7 @@ export default function ManufacturingDashboard() {
     );
   }
   return (
-    <div style={{ padding:'24px 28px', minHeight:'100vh', background:'#f1f5f9', color:'#1e293b', fontFamily:'system-ui,sans-serif' }}>
+    <div style={{ padding: isMobile ? '12px 14px' : isTV ? '32px 40px' : '24px 28px', minHeight:'100vh', background:'#f1f5f9', color:'#1e293b', fontFamily:'system-ui,sans-serif' }}>
       <DashboardHeader
         industryId="manufacturing"
         title="Smart Manufacturing / IIoT"
@@ -282,7 +284,7 @@ export default function ManufacturingDashboard() {
         <KPICard label="Critical Alerts"  value={critAlerts}             color={critAlerts > 0 ? '#dc2626' : '#64748b'} />
       </div>
 
-      <div style={{ display:'grid', gridTemplateColumns:'280px 1fr', gap:20, marginBottom:20 }}>
+      <div style={{ display:'grid', gridTemplateColumns: isMobile || isTablet ? '1fr' : '280px 1fr', gap:20, marginBottom:20 }}>
         <div style={{ display:'flex', flexDirection:'column', gap:8 }}>
           <div style={{ fontSize:12, fontWeight:600, color:'#64748b', textTransform:'uppercase',
             letterSpacing:'0.06em', marginBottom:4 }}>Shop Floor ({assetList.length})</div>
@@ -301,7 +303,7 @@ export default function ManufacturingDashboard() {
         </div>
 
         <div style={{ display:'flex', flexDirection:'column', gap:16 }}>
-          <div style={{ display:'grid', gridTemplateColumns:'1fr 1fr', gap:16 }}>
+          <div style={{ display:'grid', gridTemplateColumns: isMobile ? '1fr' : '1fr 1fr', gap:16 }}>
             {/* OEE trend */}
             <div style={{ background:'#ffffff', border:'1px solid #e2e8f0',
               borderRadius:12, padding:'16px 20px' }}>

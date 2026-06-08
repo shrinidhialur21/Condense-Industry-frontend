@@ -7,6 +7,7 @@ import {
   Truck, Bank, ShoppingCart, Hospital, ChartLineUp, Buildings,
   ArrowClockwise,
 } from '@phosphor-icons/react';
+import { useWindowSize } from '../hooks/useWindowSize.js';
 
 export const CONDENSE_BLUE = '#257df0';
 export const CONDENSE_GREY = '#767678';
@@ -273,30 +274,36 @@ export function RefreshButton({ onClick }) {
 // Usage: <DashboardHeader industryId="energy" subtitle="3 turbines · 2 solar farms" status={status} onRefresh={refresh} />
 export function DashboardHeader({ industryId, title, subtitle, status, onRefresh }) {
   const IconComp = INDUSTRY_ICONS[industryId];
+  const { isMobile, isTV } = useWindowSize();
   return (
     <div style={{
-      display: 'flex', justifyContent: 'space-between', alignItems: 'center',
-      marginBottom: 24, gap: 16,
+      display: 'flex',
+      justifyContent: 'space-between',
+      alignItems: isMobile ? 'flex-start' : 'center',
+      flexWrap: 'wrap',
+      gap: isMobile ? 10 : 16,
+      marginBottom: isMobile ? 16 : 24,
     }}>
       <div style={{ display: 'flex', alignItems: 'center', gap: 12 }}>
-        {/* Icon badge */}
         <div style={{
-          width: 40, height: 40, borderRadius: 10, flexShrink: 0,
+          width: isMobile ? 34 : 40, height: isMobile ? 34 : 40,
+          borderRadius: 10, flexShrink: 0,
           background: `${CONDENSE_BLUE}18`,
           border: `1px solid ${CONDENSE_BLUE}30`,
           display: 'flex', alignItems: 'center', justifyContent: 'center',
         }}>
-          {IconComp && <IconComp size={22} weight="duotone" color={CONDENSE_BLUE} />}
+          {IconComp && <IconComp size={isMobile ? 18 : 22} weight="duotone" color={CONDENSE_BLUE} />}
         </div>
         <div>
           <h1 style={{
-            fontSize: 18, fontWeight: 700, color: '#1e293b',
+            fontSize: isMobile ? 15 : isTV ? 22 : 18,
+            fontWeight: 700, color: '#1e293b',
             margin: 0, lineHeight: 1.2,
           }}>
             {title}
           </h1>
           {subtitle && (
-            <div style={{ fontSize: 12, color: CONDENSE_GREY, marginTop: 2 }}>
+            <div style={{ fontSize: isMobile ? 11 : 12, color: CONDENSE_GREY, marginTop: 2 }}>
               {subtitle}
             </div>
           )}

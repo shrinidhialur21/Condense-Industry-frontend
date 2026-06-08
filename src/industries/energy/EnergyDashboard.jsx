@@ -9,6 +9,7 @@ import {
 } from 'recharts';
 import { useCondenseWS }  from '../../hooks/useCondenseWS.js';
 import { INDUSTRIES }     from '../../config/industries.js';
+import { useWindowSize }  from '../../hooks/useWindowSize.js';
 import {
   ConnectionStatus, KPICard, AlertFeed, StatusBadge, HealthGauge,
   DashboardHeader, RefreshButton,
@@ -202,6 +203,7 @@ export default function EnergyDashboard() {
   const industry              = INDUSTRIES.energy;
   const { status, assets, alerts, stats, aggregates, refresh }
     = useCondenseWS(industry.apiUrl);
+  const { isMobile, isTablet, isTV } = useWindowSize();
 
   const [selectedAsset, setSelectedAsset] = useState(null);
   const [powerHistory,  setPowerHistory]  = useState([]); // [{time, ...asset powers}]
@@ -308,7 +310,7 @@ export default function EnergyDashboard() {
     );
   }
   return (
-    <div style={{ padding:'24px 28px', minHeight:'100vh',
+    <div style={{ padding: isMobile ? '12px 14px' : isTV ? '32px 40px' : '24px 28px', minHeight:'100vh',
       background:'#f1f5f9', color:'#1e293b', fontFamily:'system-ui, sans-serif' }}>
 
       {/* Header */}
@@ -332,7 +334,7 @@ export default function EnergyDashboard() {
           sub={stats?.last_updated ? `Last: ${new Date(stats.last_updated).toLocaleTimeString()}` : null} />
       </div>
 
-      <div style={{ display:'grid', gridTemplateColumns:'280px 1fr', gap:20, marginBottom:20 }}>
+      <div style={{ display:'grid', gridTemplateColumns: isMobile || isTablet ? '1fr' : '280px 1fr', gap:20, marginBottom:20 }}>
         {/* Asset list */}
         <div style={{ display:'flex', flexDirection:'column', gap:8 }}>
           <div style={{ fontSize:12, fontWeight:600, color:'#64748b',

@@ -8,6 +8,7 @@
 //   • localStorage fallback for active industry persistence
 
 import { useState, useEffect, useCallback } from 'react';
+import { useWindowSize } from './hooks/useWindowSize.js';
 import {
   Lightning, Car, Wrench, AirplaneTilt, Factory,
   Truck, Bank, ShoppingCart, Hospital, ChartLineUp, Buildings,
@@ -27,6 +28,7 @@ function LoginScreen({ onLogin }) {
   const [error,    setError]    = useState('');
   const [loading,  setLoading]  = useState(false);
   const [shake,    setShake]    = useState(false);
+  const { isMobile, isTablet, isTV } = useWindowSize();
 
   function handleSubmit(e) {
     e.preventDefault();
@@ -66,13 +68,14 @@ function LoginScreen({ onLogin }) {
       display: 'flex', height: '100vh',
       fontFamily: "'Inter', system-ui, -apple-system, sans-serif",
       background: '#ffffff',
+      flexDirection: isMobile ? 'column' : 'row',
     }}>
 
       {/* ── LEFT PANEL — illustration ─────────────────────────────────── */}
-      <div style={{
-        flex: '0 0 55%', background: '#f0f5ff',
+      {!isMobile && <div style={{
+        flex: isTablet ? '0 0 45%' : '0 0 55%', background: '#f0f5ff',
         display: 'flex', flexDirection: 'column',
-        padding: '36px 40px', position: 'relative', overflow: 'hidden',
+        padding: isTablet ? '28px 28px' : '36px 40px', position: 'relative', overflow: 'hidden',
       }}>
         {/* Logo top-left */}
         {/* <div style={{ display: 'flex', alignItems: 'center', gap: 10, marginBottom: 'auto' }}>
@@ -191,18 +194,18 @@ function LoginScreen({ onLogin }) {
         <div style={{ marginTop: 28, fontSize: 11, color: '#94a3b8' }}>
           © Zeliot All Rights Reserved | 2026 &nbsp;·&nbsp; Powered by Condense
         </div>
-      </div>
+      </div>}
 
       {/* ── RIGHT PANEL — login form ───────────────────────────────────── */}
       <div style={{
-        flex: '0 0 45%',
+        flex: isMobile ? '1' : '0 0 45%',
         display: 'flex', flexDirection: 'column',
         alignItems: 'center', justifyContent: 'center',
-        padding: '48px 56px',
+        padding: isMobile ? '32px 24px' : isTablet ? '40px 40px' : '48px 56px',
         background: '#ffffff',
       }}>
         <div style={{
-          width: '100%', maxWidth: 360,
+          width: '100%', maxWidth: isTV ? 480 : 360,
           animation: shake ? 'shake 0.4s ease' : 'none',
         }}>
           {/* Logo */}
@@ -420,6 +423,8 @@ export default function App() {
   const [authed,      setAuthed]      = useState(() => sessionStorage.getItem(SESSION_KEY) === '1');
   const [activeId,    setActiveId]    = useState(getInitialId);
   const [sidebarOpen, setSidebarOpen] = useState(true);
+  const [drawerOpen,  setDrawerOpen]  = useState(false);
+  const { isMobile, isTablet, isTV } = useWindowSize();
 
   // ── ALL hooks must be called before any early return ──────────────────────
 
@@ -458,6 +463,181 @@ export default function App() {
   const ActiveDash    = DASHBOARDS[activeId];
   const activeIndustry = INDUSTRY_LIST.find(i => i.id === activeId);
 
+  function signOut() {
+    sessionStorage.removeItem(SESSION_KEY);
+    localStorage.removeItem('condense_active_industry');
+    window.history.replaceState(null, '', window.location.pathname);
+    setAuthed(false);
+  }
+
+  // ── Industry nav list (shared between sidebar and drawer) ──────────────
+  function IndustryList({ showLabels, onSelect }) {
+    return (
+      <>
+        {INDUSTRY_LIST.map(ind => {
+          const isActive = activeId === ind.id;
+          const IconComp = INDUSTRY_ICONS[ind.id];
+          const isLive   = Boolean(ind.apiUrl);
+          return (
+            <button
+              key={ind.id}
+              onClick={() => { navigate(ind.id); onSelect?.(); }}
+              title={!showLabels ? ind.name : undefined}
+              style={{
+                width: '100%',
+                display: 'flex', alignItems: 'center', gap: 10,
+                padding: showLabels ? '10px 16px' : '10px 0',
+                justifyContent: showLabels ? 'flex-start' : 'center',
+                background: isActive ? 'rgba(37,125,240,0.15)' : 'transparent',
+                borderLeft:  isActive ? `3px solid ${CONDENSE_BLUE}` : '3px solid transparent',
+                borderRight: 'none', borderTop: 'none', borderBottom: 'none',
+                cursor: 'pointer',
+                transition: 'all 0.12s',
+              }}
+            >
+              {IconComp && (
+                <IconComp
+                  size={showLabels ? 18 : 20}
+                  weight={isActive ? 'fill' : 'regular'}
+                  color={isActive ? CONDENSE_BLUE : 'rgba(255,255,255,0.45)'}
+                  style={{ flexShrink: 0 }}
+                />
+              )}
+              {showLabels && (
+                <div style={{ textAlign: 'left', minWidth: 0, flex: 1 }}>
+                  <div style={{
+                    fontSize: 13, fontWeight: isActive ? 600 : 400,
+                    color: isActive ? '#ffffff' : 'rgba(255,255,255,0.6)',
+                    whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis',
+                  }}>
+                    {ind.shortName}
+                  </div>
+                  {isLive && (
+                    <div style={{ display: 'flex', alignItems: 'center', gap: 4, marginTop: 2 }}>
+                      <span style={{ width: 5, height: 5, borderRadius: '50%', background: '#4ade80', boxShadow: '0 0 5px #4ade80', display: 'inline-block' }}/>
+                      <span style={{ fontSize: 9, color: '#4ade80', textTransform: 'uppercase', letterSpacing: '0.07em' }}>live</span>
+                    </div>
+                  )}
+                </div>
+              )}
+            </button>
+          );
+        })}
+      </>
+    );
+  }
+
+  // ── Mobile layout: top bar + drawer ────────────────────────────────────
+  if (isMobile) {
+    const activeInd = INDUSTRY_LIST.find(i => i.id === activeId);
+    const ActiveIcon = INDUSTRY_ICONS[activeId];
+    return (
+      <div style={{ display: 'flex', flexDirection: 'column', height: '100vh', background: '#f1f5f9', fontFamily: "'Inter', system-ui, sans-serif", overflow: 'hidden' }}>
+
+        {/* Mobile top bar */}
+        <div style={{
+          height: 52, background: '#0c1a3a', flexShrink: 0,
+          display: 'flex', alignItems: 'center', padding: '0 14px',
+          borderBottom: '1px solid rgba(255,255,255,0.07)',
+          boxShadow: '0 2px 8px rgba(0,0,0,0.2)',
+          gap: 10,
+        }}>
+          {/* Hamburger */}
+          <button onClick={() => setDrawerOpen(true)} style={{
+            background: 'rgba(255,255,255,0.07)', border: '1px solid rgba(255,255,255,0.12)',
+            color: 'rgba(255,255,255,0.8)', cursor: 'pointer',
+            width: 34, height: 34, borderRadius: 8, flexShrink: 0,
+            display: 'flex', alignItems: 'center', justifyContent: 'center',
+          }}>
+            <svg width="16" height="16" viewBox="0 0 16 16" fill="none">
+              <rect x="1" y="3" width="14" height="2" rx="1" fill="currentColor"/>
+              <rect x="1" y="7" width="14" height="2" rx="1" fill="currentColor"/>
+              <rect x="1" y="11" width="14" height="2" rx="1" fill="currentColor"/>
+            </svg>
+          </button>
+
+          {/* Current industry */}
+          <div style={{ display: 'flex', alignItems: 'center', gap: 8, flex: 1, minWidth: 0 }}>
+            {ActiveIcon && <ActiveIcon size={18} weight="duotone" color={CONDENSE_BLUE} style={{ flexShrink: 0 }} />}
+            <span style={{ fontSize: 14, fontWeight: 600, color: '#ffffff', whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>
+              {activeInd?.name || 'Dashboard'}
+            </span>
+          </div>
+
+          {/* Logo */}
+          <img src="/Condense.png" alt="Condense" style={{ height: 18, width: 'auto', filter: 'invert(1)', mixBlendMode: 'screen', flexShrink: 0 }} />
+        </div>
+
+        {/* Drawer overlay */}
+        {drawerOpen && (
+          <>
+            <div onClick={() => setDrawerOpen(false)} style={{
+              position: 'fixed', inset: 0, background: 'rgba(0,0,0,0.45)', zIndex: 100,
+            }} />
+            <div style={{
+              position: 'fixed', top: 0, left: 0, bottom: 0, width: 260,
+              background: '#0c1a3a', zIndex: 101, display: 'flex', flexDirection: 'column',
+              boxShadow: '4px 0 20px rgba(0,0,0,0.4)',
+              animation: 'slideIn 0.2s ease',
+            }}>
+              {/* Drawer header */}
+              <div style={{
+                height: 56, padding: '0 14px', borderBottom: '1px solid rgba(255,255,255,0.07)',
+                display: 'flex', alignItems: 'center', justifyContent: 'space-between',
+              }}>
+                <div style={{ display: 'flex', flexDirection: 'column', gap: 2 }}>
+                  <img src="/Condense.png" alt="Condense" style={{ height: 20, width: 'auto', filter: 'invert(1)', mixBlendMode: 'screen' }} />
+                  <span style={{ fontSize: 8, fontWeight: 600, color: 'rgba(255,255,255,0.28)', textTransform: 'uppercase', letterSpacing: '0.18em' }}>Industry Demo</span>
+                </div>
+                <button onClick={() => setDrawerOpen(false)} style={{
+                  background: 'rgba(255,255,255,0.07)', border: '1px solid rgba(255,255,255,0.12)',
+                  color: 'rgba(255,255,255,0.7)', cursor: 'pointer', width: 28, height: 28,
+                  borderRadius: 6, display: 'flex', alignItems: 'center', justifyContent: 'center',
+                }}>
+                  <CaretLeft size={14} weight="bold" />
+                </button>
+              </div>
+
+              {/* Industry list */}
+              <div style={{ flex: 1, overflowY: 'auto', padding: '6px 0' }}>
+                <IndustryList showLabels={true} onSelect={() => setDrawerOpen(false)} />
+              </div>
+
+              {/* Footer */}
+              <div style={{ padding: '10px 14px', borderTop: '1px solid rgba(255,255,255,0.06)' }}>
+                <button onClick={signOut} style={{
+                  display: 'flex', alignItems: 'center', gap: 8, padding: '8px 12px',
+                  background: 'rgba(239,68,68,0.08)', border: '1px solid rgba(239,68,68,0.18)',
+                  borderRadius: 8, cursor: 'pointer', color: 'rgba(255,120,120,0.8)',
+                  fontSize: 12, fontWeight: 500, width: '100%',
+                }}>
+                  <SignOut size={14} weight="bold" />
+                  Sign Out
+                </button>
+                <div style={{ fontSize: 10, color: 'rgba(255,255,255,0.18)', marginTop: 8, letterSpacing: '0.04em' }}>
+                  Powered by Condense · Zeliot
+                </div>
+              </div>
+            </div>
+          </>
+        )}
+
+        {/* Main content */}
+        <div style={{ flex: 1, overflowY: 'auto', overflowX: 'hidden' }}>
+          {ActiveDash ? <ActiveDash /> : <ComingSoon industry={activeIndustry} />}
+        </div>
+
+        <style>{`
+          @keyframes slideIn { from { transform: translateX(-100%); } to { transform: translateX(0); } }
+        `}</style>
+      </div>
+    );
+  }
+
+  // ── Desktop / Tablet layout: sidebar ───────────────────────────────────
+  const showLabels = isTablet ? sidebarOpen : sidebarOpen;
+  const sidebarWidth = showLabels ? (isTV ? 260 : 230) : 58;
+
   return (
     <div style={{
       display: 'flex', height: '100vh',
@@ -468,7 +648,7 @@ export default function App() {
 
       {/* ══ Sidebar ═══════════════════════════════════════════════════════════ */}
       <div style={{
-        width: sidebarOpen ? 230 : 58,
+        width: sidebarWidth,
         background: '#0c1a3a',
         borderRight: '1px solid rgba(255,255,255,0.06)',
         display: 'flex', flexDirection: 'column',
@@ -483,12 +663,11 @@ export default function App() {
           padding: '0 12px',
           borderBottom: '1px solid rgba(255,255,255,0.07)',
           display: 'flex', alignItems: 'center',
-          justifyContent: sidebarOpen ? 'space-between' : 'center',
+          justifyContent: showLabels ? 'space-between' : 'center',
           flexShrink: 0, gap: 6,
         }}>
-          {sidebarOpen && (
+          {showLabels && (
             <div style={{ display: 'flex', flexDirection: 'column', justifyContent: 'center', minWidth: 0, flex: 1, gap: 2 }}>
-              {/* Logo: invert(1) + screen blend = white logo, background disappears */}
               <div style={{ background: '#0c1a3a', borderRadius: 3, overflow: 'hidden', display: 'inline-flex' }}>
                 <img
                   src="/Condense.png"
@@ -509,10 +688,9 @@ export default function App() {
             </div>
           )}
 
-          {/* Collapse / Expand toggle — always visible, clearly labelled */}
           <button
             onClick={() => setSidebarOpen(v => !v)}
-            title={sidebarOpen ? 'Collapse sidebar' : 'Expand sidebar'}
+            title={showLabels ? 'Collapse sidebar' : 'Expand sidebar'}
             style={{
               background: 'rgba(255,255,255,0.07)',
               border: '1px solid rgba(255,255,255,0.12)',
@@ -524,7 +702,7 @@ export default function App() {
               transition: 'background 0.15s, color 0.15s',
             }}
           >
-            {sidebarOpen
+            {showLabels
               ? <CaretLeft size={14} weight="bold" />
               : <CaretRight size={14} weight="bold" />
             }
@@ -533,111 +711,36 @@ export default function App() {
 
         {/* ── Industry list ── */}
         <div style={{ flex: 1, overflowY: 'auto', padding: '6px 0' }}>
-          {INDUSTRY_LIST.map(ind => {
-            const isActive  = activeId === ind.id;
-            const IconComp  = INDUSTRY_ICONS[ind.id];
-            // "Live" means apiUrl is configured — pipeline is deployed
-            const isLive    = Boolean(ind.apiUrl);
-
-            return (
-              <button
-                key={ind.id}
-                onClick={() => navigate(ind.id)}
-                title={!sidebarOpen ? ind.name : undefined}
-                style={{
-                  width: '100%',
-                  display: 'flex', alignItems: 'center', gap: 10,
-                  padding: sidebarOpen ? '8px 14px' : '10px 0',
-                  justifyContent: sidebarOpen ? 'flex-start' : 'center',
-                  background: isActive
-                    ? `rgba(37,125,240,0.15)`
-                    : 'transparent',
-                  borderLeft:  isActive ? `3px solid ${CONDENSE_BLUE}` : '3px solid transparent',
-                  borderRight: 'none', borderTop: 'none', borderBottom: 'none',
-                  cursor: 'pointer',
-                  transition: 'all 0.12s',
-                  position: 'relative',
-                }}
-              >
-                {/* Phosphor icon */}
-                {IconComp && (
-                  <IconComp
-                    size={18}
-                    weight={isActive ? 'fill' : 'regular'}
-                    color={isActive ? CONDENSE_BLUE : 'rgba(255,255,255,0.45)'}
-                    style={{ flexShrink: 0 }}
-                  />
-                )}
-
-                {sidebarOpen && (
-                  <div style={{ textAlign: 'left', minWidth: 0, flex: 1 }}>
-                    <div style={{
-                      fontSize: 12,
-                      fontWeight: isActive ? 600 : 400,
-                      color: isActive ? '#ffffff' : 'rgba(255,255,255,0.6)',
-                      whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis',
-                    }}>
-                      {ind.shortName}
-                    </div>
-
-                    {/* Live indicator — only shown when apiUrl is configured */}
-                    {isLive && (
-                      <div style={{ display: 'flex', alignItems: 'center', gap: 4, marginTop: 2 }}>
-                        <span style={{
-                          width: 5, height: 5, borderRadius: '50%',
-                          background: '#4ade80',
-                          boxShadow: '0 0 5px #4ade80',
-                          display: 'inline-block', flexShrink: 0,
-                        }}/>
-                        <span style={{
-                          fontSize: 9, color: '#4ade80',
-                          textTransform: 'uppercase', letterSpacing: '0.07em',
-                        }}>
-                          live
-                        </span>
-                      </div>
-                    )}
-                  </div>
-                )}
-              </button>
-            );
-          })}
+          <IndustryList showLabels={showLabels} />
         </div>
 
         {/* Footer */}
         <div style={{
-          padding: sidebarOpen ? '10px 14px' : '10px 0',
+          padding: showLabels ? '10px 14px' : '10px 0',
           borderTop: '1px solid rgba(255,255,255,0.06)',
           flexShrink: 0,
           display: 'flex', flexDirection: 'column', gap: 8,
-          alignItems: sidebarOpen ? 'stretch' : 'center',
+          alignItems: showLabels ? 'stretch' : 'center',
         }}>
-          {/* Sign out button */}
           <button
-            onClick={() => {
-              sessionStorage.removeItem(SESSION_KEY);
-              localStorage.removeItem('condense_active_industry');
-              // Clear the hash so the login screen shows a clean URL
-              window.history.replaceState(null, '', window.location.pathname);
-              setAuthed(false);
-            }}
+            onClick={signOut}
             title="Sign out"
             style={{
               display: 'flex', alignItems: 'center', gap: 8,
-              justifyContent: sidebarOpen ? 'flex-start' : 'center',
-              padding: sidebarOpen ? '7px 10px' : '7px',
+              justifyContent: showLabels ? 'flex-start' : 'center',
+              padding: showLabels ? '7px 10px' : '7px',
               background: 'rgba(239,68,68,0.08)',
               border: '1px solid rgba(239,68,68,0.18)',
               borderRadius: 8, cursor: 'pointer',
               color: 'rgba(255,120,120,0.8)', fontSize: 12, fontWeight: 500,
-              transition: 'all 0.15s', width: sidebarOpen ? '100%' : 'auto',
+              transition: 'all 0.15s', width: showLabels ? '100%' : 'auto',
             }}
           >
             <SignOut size={14} weight="bold" />
-            {sidebarOpen && 'Sign Out'}
+            {showLabels && 'Sign Out'}
           </button>
 
-          {sidebarOpen && (
+          {showLabels && (
             <div style={{ fontSize: 10, color: 'rgba(255,255,255,0.2)', letterSpacing: '0.04em' }}>
               Powered by Condense · Zeliot
             </div>

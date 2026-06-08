@@ -9,6 +9,7 @@ import {
 } from 'recharts';
 import { useCondenseWS } from '../../hooks/useCondenseWS.js';
 import { INDUSTRIES }    from '../../config/industries.js';
+import { useWindowSize } from '../../hooks/useWindowSize.js';
 import {
   ConnectionStatus, KPICard, AlertFeed, StatusBadge, HealthGauge,
   DashboardHeader, RefreshButton,
@@ -287,9 +288,10 @@ function DetailRow({ label, value }) {
 
 function HotelRoomDetail({ asset }) {
   const k = asset.kpis || {};
+  const { isMobile } = useWindowSize();
   return (
     <div>
-      <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 8, marginBottom: 12 }}>
+      <div style={{ display: 'grid', gridTemplateColumns: isMobile ? '1fr' : '1fr 1fr', gap: 8, marginBottom: 12 }}>
         <div style={{ background: 'rgba(16,185,129,0.08)', borderRadius: 8, padding: '10px 12px' }}>
           <div style={{ fontSize: 20, fontWeight: 800, color: '#10b981', fontFamily: 'monospace' }}>
             ${k.revpar_usd != null ? k.revpar_usd.toFixed(0) : '—'}
@@ -325,9 +327,10 @@ function HotelRoomDetail({ asset }) {
 
 function FnBDetail({ asset }) {
   const k = asset.kpis || {};
+  const { isMobile } = useWindowSize();
   return (
     <div>
-      <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 8, marginBottom: 12 }}>
+      <div style={{ display: 'grid', gridTemplateColumns: isMobile ? '1fr' : '1fr 1fr', gap: 8, marginBottom: 12 }}>
         <div style={{ background: 'rgba(245,158,11,0.08)', borderRadius: 8, padding: '10px 12px' }}>
           <div style={{ fontSize: 20, fontWeight: 800, color: '#f59e0b', fontFamily: 'monospace' }}>
             {k.occupancy_pct != null ? `${k.occupancy_pct.toFixed(0)}%` : '—'}
@@ -358,9 +361,10 @@ function FnBDetail({ asset }) {
 
 function SpaDetail({ asset }) {
   const k = asset.kpis || {};
+  const { isMobile } = useWindowSize();
   return (
     <div>
-      <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 8, marginBottom: 12 }}>
+      <div style={{ display: 'grid', gridTemplateColumns: isMobile ? '1fr' : '1fr 1fr', gap: 8, marginBottom: 12 }}>
         <div style={{ background: 'rgba(139,92,246,0.08)', borderRadius: 8, padding: '10px 12px' }}>
           <div style={{ fontSize: 20, fontWeight: 800, color: '#8b5cf6', fontFamily: 'monospace' }}>
             {k.utilization_pct != null ? `${k.utilization_pct.toFixed(0)}%` : '—'}
@@ -390,9 +394,10 @@ function SpaDetail({ asset }) {
 
 function FeedbackDetail({ asset }) {
   const k = asset.kpis || {};
+  const { isMobile } = useWindowSize();
   return (
     <div>
-      <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 8, marginBottom: 12 }}>
+      <div style={{ display: 'grid', gridTemplateColumns: isMobile ? '1fr' : '1fr 1fr', gap: 8, marginBottom: 12 }}>
         <div style={{ background: 'rgba(236,72,153,0.08)', borderRadius: 8, padding: '10px 12px' }}>
           <div style={{ fontSize: 20, fontWeight: 800, color: '#ec4899', fontFamily: 'monospace' }}>
             {asset.rating != null ? asset.rating.toFixed(1) : '—'}
@@ -424,9 +429,10 @@ function FeedbackDetail({ asset }) {
 
 function FacilityDetail({ asset }) {
   const k = asset.kpis || {};
+  const { isMobile } = useWindowSize();
   return (
     <div>
-      <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 8, marginBottom: 12 }}>
+      <div style={{ display: 'grid', gridTemplateColumns: isMobile ? '1fr' : '1fr 1fr', gap: 8, marginBottom: 12 }}>
         <div style={{ background: 'rgba(6,182,212,0.08)', borderRadius: 8, padding: '10px 12px' }}>
           <div style={{ fontSize: 20, fontWeight: 800, color: '#06b6d4', fontFamily: 'monospace' }}>
             {(k.utilization_pct ?? asset.utilization_pct) != null
@@ -481,6 +487,7 @@ function SectionHeader({ icon, title, count, color }) {
 export default function TravelDashboard() {
   const apiUrl = CFG?.apiUrl || '';
   const { status, assets, alerts } = useCondenseWS(apiUrl);
+  const { isMobile, isTablet, isTV } = useWindowSize();
 
   const [selectedId, setSelectedId] = useState(null);
   const [gssHistory,  setGssHistory]  = useState([]);
@@ -569,7 +576,7 @@ export default function TravelDashboard() {
   }
 
   return (
-    <div style={{ padding: '20px 24px', minHeight: '100vh', background: '#f1f5f9', color: '#1e293b' }}>
+    <div style={{ padding: isMobile ? '12px 14px' : isTV ? '28px 40px' : '20px 24px', minHeight: '100vh', background: '#f1f5f9', color: '#1e293b' }}>
 
       {/* ── Header ── */}
       <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: 20 }}>
@@ -653,7 +660,7 @@ export default function TravelDashboard() {
           )}
 
           {/* Trend Charts Row */}
-          <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 12 }}>
+          <div style={{ display: 'grid', gridTemplateColumns: isMobile ? '1fr' : '1fr 1fr', gap: 12 }}>
             {/* GSS Trend */}
             <div style={{ background: '#ffffff', border: '1px solid #e2e8f0',
               borderRadius: 12, padding: 16 }}>
@@ -736,7 +743,7 @@ export default function TravelDashboard() {
           )}
 
           {/* Spa Services + Facilities row */}
-          <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 12 }}>
+          <div style={{ display: 'grid', gridTemplateColumns: isMobile ? '1fr' : '1fr 1fr', gap: 12 }}>
             {spas.length > 0 && (
               <div style={{ background: '#ffffff', border: '1px solid #e2e8f0',
                 borderRadius: 12, padding: 16 }}>

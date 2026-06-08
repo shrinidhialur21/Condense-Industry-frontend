@@ -10,6 +10,7 @@ import {
 } from 'recharts';
 import { useCondenseWS } from '../../hooks/useCondenseWS.js';
 import { INDUSTRIES }    from '../../config/industries.js';
+import { useWindowSize } from '../../hooks/useWindowSize.js';
 import {
   ConnectionStatus, KPICard, AlertFeed, StatusBadge, HealthGauge,
   DashboardHeader, RefreshButton,
@@ -113,6 +114,7 @@ function StatRow({ label, value, sub, valueColor }) {
 export default function StockExchangeDashboard() {
   const industry = INDUSTRIES.stockexchange;
   const { status, assets, alerts, refresh } = useCondenseWS(industry.apiUrl);
+  const { isMobile, isTablet, isTV } = useWindowSize();
 
   const [tpsHistory,    setTpsHistory]    = useState([]);
   const [msiHistory,    setMsiHistory]    = useState([]);
@@ -201,7 +203,7 @@ export default function StockExchangeDashboard() {
     );
   }
   return (
-    <div style={{ padding: '20px 24px', minHeight: '100vh', background: '#f1f5f9',
+    <div style={{ padding: isMobile ? '12px 14px' : isTV ? '28px 40px' : '20px 24px', minHeight: '100vh', background: '#f1f5f9',
       fontFamily: 'system-ui, -apple-system, sans-serif', color: '#1e293b' }}>
 
       <DashboardHeader
@@ -260,7 +262,7 @@ export default function StockExchangeDashboard() {
       </div>
 
       {/* ── 3-column main layout ── */}
-      <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr 1fr', gap: 16, marginBottom: 16 }}>
+      <div style={{ display: 'grid', gridTemplateColumns: isMobile ? '1fr' : isTablet ? '1fr 1fr' : '1fr 1fr 1fr', gap: 16, marginBottom: 16 }}>
 
         {/* Market Stress Index */}
         <Panel title="Market Stress Index" accent="#dc2626">
@@ -362,7 +364,7 @@ export default function StockExchangeDashboard() {
       </div>
 
       {/* ── 2-column: Fraud + Segments ── */}
-      <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 16, marginBottom: 16 }}>
+      <div style={{ display: 'grid', gridTemplateColumns: isMobile ? '1fr' : '1fr 1fr', gap: 16, marginBottom: 16 }}>
 
         {/* Surveillance & Fraud Detection */}
         <Panel title="Market Surveillance & Fraud Detection" accent="#ef4444">
@@ -384,7 +386,7 @@ export default function StockExchangeDashboard() {
             </div>
           </div>
 
-          <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 8, marginBottom: 12 }}>
+          <div style={{ display: 'grid', gridTemplateColumns: isMobile ? '1fr' : '1fr 1fr', gap: 8, marginBottom: 12 }}>
             {[
               { label: 'Wash Trade',      value: fk.wash_trade_alerts,     weight: '×2.5', color: '#dc2626' },
               { label: 'Spoofing',        value: fk.spoofing_alerts,       weight: '×2.0', color: '#dc2626' },
