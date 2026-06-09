@@ -2,8 +2,7 @@
 // Live Automotive & Telematics dashboard — vehicles with OBD2, GPS, CAN bus data.
 
 import { useState, useEffect, useRef, useMemo } from "react";
-import { MapContainer, TileLayer, CircleMarker, Polyline, Popup, useMap } from 'react-leaflet';
-import 'leaflet/dist/leaflet.css';
+import { MapContainer, TileLayer, CircleMarker, Polyline, Popup } from 'react-leaflet';
 import {
   LineChart,
   Line,
@@ -253,23 +252,6 @@ function KpiTileCV({ label, value, unit, color='#1e293b', algoFormula, status, s
 }
 
 // ── Live Fleet Map — Leaflet + OpenStreetMap tiles ────────────
-function MapRecenter({ vehicles }) {
-  const map = useMap();
-  useEffect(() => {
-    const withGPS = vehicles.filter(v => v.latitude && v.longitude);
-    if (withGPS.length > 0) {
-      const lats = withGPS.map(v => v.latitude);
-      const lons = withGPS.map(v => v.longitude);
-      const bounds = [
-        [Math.min(...lats) - 0.02, Math.min(...lons) - 0.02],
-        [Math.max(...lats) + 0.02, Math.max(...lons) + 0.02],
-      ];
-      map.fitBounds(bounds, { maxZoom: 13, animate: true });
-    }
-  }, [vehicles.length]);
-  return null;
-}
-
 function FleetMap({ vehicles, selectedId, onSelect, posHistory }) {
   const speedColor = spd => {
     if (spd < 1)   return '#94a3b8';
@@ -313,8 +295,6 @@ function FleetMap({ vehicles, selectedId, onSelect, posHistory }) {
           attribution='&copy; <a href="https://www.openstreetmap.org/copyright">OpenStreetMap</a>'
           url="https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png"
         />
-        <MapRecenter vehicles={vehicles} />
-
         {/* Route corridors */}
         {ROUTE_CORRIDORS.map((r, i) => (
           <Polyline key={i} positions={r.pts} color={r.color} weight={2.5} opacity={0.5} dashArray="6 5" />
