@@ -143,36 +143,41 @@ function EVDetail({ asset }) {
           letterSpacing: '0.08em', marginBottom: 8 }}>Live Telemetry</div>
         <div style={{ display:'grid', gridTemplateColumns:'repeat(auto-fill, minmax(120px,1fr))', gap:8 }}>
           <KpiTile label="SOC"          value={asset.soc_pct}           unit="%" color="#3b82f6" />
+          <KpiTile label="Est. Range"   value={k.predicted_range_km ?? asset.estimated_range_km} unit="km" color="#22c55e" />
           <KpiTile label="Battery Temp" value={asset.battery_temp_c}    unit="°C" color={asset.battery_temp_c > 40 ? '#ef4444' : '#475569'} />
           <KpiTile label="Speed"        value={asset.speed_kmh}         unit="km/h" color="#475569" />
-          <KpiTile label="Pack Voltage" value={asset.battery_voltage_v} unit="V"  color="#475569" />
+          <KpiTile label="Pack Voltage" value={asset.battery_voltage_v} unit="V" color="#475569" />
           <KpiTile label="Odometer"     value={asset.odometer_km}       unit="km" color="#475569" />
           <KpiTile label="Charge State" value={asset.charging_status}   color="#8b5cf6" />
           <KpiTile label="Regen Power"  value={asset.regeneration_kw}   unit="kW" color="#06b6d4" />
         </div>
       </div>
 
-      {/* ── Battery Health Algorithms ── */}
+      {/* ── Battery Health ── */}
       <div>
         <div style={{ fontSize: 11, fontWeight: 700, color: '#475569', textTransform: 'uppercase',
-          letterSpacing: '0.08em', marginBottom: 8 }}>🔋 Battery Health Algorithms</div>
+          letterSpacing: '0.08em', marginBottom: 8 }}>🔋 Battery Health</div>
         <div style={{ display:'grid', gridTemplateColumns:'repeat(auto-fill, minmax(140px,1fr))', gap:8 }}>
           <KpiTile label="State of Health (SoH)"
             value={k.soh_pct} unit="%"
             color={k.soh_pct >= 90 ? '#16a34a' : k.soh_pct >= 80 ? '#d97706' : '#dc2626'}
-            status={k.soh_status} statusLevel={k.soh_status === 'excellent' ? 'excellent' : k.soh_status === 'good' ? 'good' : k.soh_status === 'fair' ? 'average' : 'poor'}
+            status={k.soh_status}
+            statusLevel={k.soh_status === 'excellent' ? 'excellent' : k.soh_status === 'good' ? 'good' : k.soh_status === 'fair' ? 'average' : 'poor'} />
           <KpiTile label="Thermal Score (TMS)"
             value={k.thermal_score} unit="/100"
             color={k.thermal_score >= 85 ? '#16a34a' : k.thermal_score >= 65 ? '#d97706' : '#dc2626'}
-            status={k.thermal_status} statusLevel={k.thermal_status === 'optimal' ? 'excellent' : k.thermal_status === 'acceptable' ? 'good' : 'critical'}
+            status={k.thermal_status}
+            statusLevel={k.thermal_status === 'optimal' ? 'excellent' : k.thermal_status === 'acceptable' ? 'good' : 'critical'} />
           <KpiTile label="C-Rate Stress (CRSI)"
             value={k.crsi} unit="/100"
             color={k.crsi_level === 'critical' ? '#dc2626' : k.crsi_level === 'high' ? '#d97706' : '#16a34a'}
-            status={k.crsi_level} statusLevel={k.crsi_level}
+            status={k.crsi_level}
+            statusLevel={k.crsi_level} />
           <KpiTile label="C-Rate"
             value={k.c_rate} unit="C"
             color={k.c_rate > 1.5 ? '#ef4444' : '#475569'}
-            status={k.c_rate_status} statusLevel={k.c_rate_status === 'normal' ? 'good' : k.c_rate_status === 'elevated' ? 'average' : 'critical'}
+            status={k.c_rate_status}
+            statusLevel={k.c_rate_status === 'normal' ? 'good' : k.c_rate_status === 'elevated' ? 'average' : 'critical'} />
         </div>
       </div>
 
@@ -184,23 +189,17 @@ function EVDetail({ asset }) {
           <KpiTile label="Cycle Life Consumed"
             value={k.battery_life_consumed_pct} unit="%"
             color={k.cycle_life_status === 'replace_soon' ? '#dc2626' : k.cycle_life_status === 'watch' ? '#d97706' : '#16a34a'}
-            status={k.cycle_life_status} statusLevel={k.cycle_life_status}
-          <KpiTile label="Est. Cycles"
-            value={k.estimated_full_cycles}
-            color="#475569"
-          <KpiTile label="Cycles Remaining"
-            value={k.cycles_remaining}
-            color="#22c55e" />
+            status={k.cycle_life_status}
+            statusLevel={k.cycle_life_status} />
+          <KpiTile label="Est. Cycles"        value={k.estimated_full_cycles}    color="#475569" />
+          <KpiTile label="Cycles Remaining"   value={k.cycles_remaining}         color="#22c55e" />
           <KpiTile label="km Until Replacement"
             value={k.km_until_battery_replacement != null ? Math.round(k.km_until_battery_replacement / 1000) : null}
-            unit="k km"
-            color="#8b5cf6" />
-          <KpiTile label="Degradation Rate"
-            value={k.degradation_status}
-            color={k.degradation_status === 'rapid' ? '#dc2626' : '#475569'}
+            unit="k km" color="#8b5cf6" />
+          <KpiTile label="Degradation Rate"   value={k.degradation_status}
+            color={k.degradation_status === 'rapid' ? '#dc2626' : '#475569'} />
           <KpiTile label="Est. Days to Replace"
-            value={k.estimated_days_to_replacement}
-            unit="days"
+            value={k.estimated_days_to_replacement} unit="days"
             color={k.estimated_days_to_replacement != null && k.estimated_days_to_replacement < 180 ? '#ef4444' : '#475569'} />
         </div>
       </div>
@@ -213,24 +212,22 @@ function EVDetail({ asset }) {
           <KpiTile label="V2G Readiness"
             value={k.v2g_readiness_score} unit="/100"
             color={k.v2g_readiness_score >= 70 ? '#16a34a' : k.v2g_readiness_score >= 40 ? '#d97706' : '#94a3b8'}
-            status={k.v2g_status} statusLevel={k.v2g_status === 'high_availability' ? 'excellent' : k.v2g_status === 'moderate' ? 'average' : 'idle'}
-          <KpiTile label="V2G Available"
-            value={k.v2g_available_kwh} unit="kWh"
-            color="#22c55e"
-          <KpiTile label="V2G Eligible"
-            value={k.v2g_eligible ? 'YES' : 'NO'}
+            status={k.v2g_status}
+            statusLevel={k.v2g_status === 'high_availability' ? 'excellent' : k.v2g_status === 'moderate' ? 'average' : 'idle'} />
+          <KpiTile label="V2G Available"  value={k.v2g_available_kwh}   unit="kWh" color="#22c55e" />
+          <KpiTile label="V2G Eligible"   value={k.v2g_eligible ? 'YES' : 'NO'}
             color={k.v2g_eligible ? '#16a34a' : '#94a3b8'} />
           <KpiTile label="TCO per km"
             value={k.tco_per_km_inr} unit="₹/km"
             color={k.tco_rating === 'excellent' ? '#16a34a' : k.tco_rating === 'good' ? '#d97706' : '#ef4444'}
-            status={k.tco_rating} statusLevel={k.tco_rating === 'excellent' ? 'excellent' : k.tco_rating === 'good' ? 'good' : 'critical'}
+            status={k.tco_rating}
+            statusLevel={k.tco_rating === 'excellent' ? 'excellent' : k.tco_rating === 'good' ? 'good' : 'critical'} />
           <KpiTile label="Energy Efficiency"
             value={k.energy_efficiency_wh_km} unit="Wh/km"
             color={k.efficiency_rating === 'excellent' ? '#16a34a' : k.efficiency_rating === 'good' ? '#d97706' : '#ef4444'}
-            status={k.efficiency_rating} statusLevel={k.efficiency_rating === 'excellent' ? 'excellent' : k.efficiency_rating === 'good' ? 'good' : 'poor'}
-          <KpiTile label="vs ICE Savings"
-            value={k.tco_vs_ice_savings_pct} unit="%"
-            color="#22c55e"
+            status={k.efficiency_rating}
+            statusLevel={k.efficiency_rating === 'excellent' ? 'excellent' : k.efficiency_rating === 'good' ? 'good' : 'poor'} />
+          <KpiTile label="vs ICE Savings" value={k.tco_vs_ice_savings_pct} unit="%" color="#22c55e" />
         </div>
       </div>
 
@@ -243,16 +240,13 @@ function EVDetail({ asset }) {
             <KpiTile label="Charge Speed (CSI)"
               value={k.charge_speed_index_pct} unit="%"
               color="#3b82f6"
-              status={k.csi_status} statusLevel={k.csi_status === 'optimal' ? 'excellent' : k.csi_status === 'normal' ? 'good' : 'critical'}
-            <KpiTile label="Est. Charging Eff."
-              value={k.estimated_charging_efficiency} unit="%"
-              color="#22c55e"
-            <KpiTile label="Instant Power"
-              value={k.instantaneous_power_kw} unit="kW"
-              color="#8b5cf6" />
+              status={k.csi_status}
+              statusLevel={k.csi_status === 'optimal' ? 'excellent' : k.csi_status === 'normal' ? 'good' : 'critical'} />
+            <KpiTile label="Est. Charging Eff." value={k.estimated_charging_efficiency} unit="%" color="#22c55e" />
+            <KpiTile label="Instant Power"      value={k.instantaneous_power_kw}        unit="kW" color="#8b5cf6" />
             <KpiTile label="Taper Zone"
               value={k.is_in_taper_zone ? 'YES (SOC>80%)' : 'NO'}
-              color="#475569"
+              color="#475569" />
           </div>
         </div>
       )}
@@ -273,36 +267,35 @@ function ChargingStationDetail({ asset }) {
           <KpiTile label="Port Utilisation"
             value={k.utilization_pct ?? asset.utilization_pct} unit="%"
             color="#3b82f6"
-            status={k.utilization_status} statusLevel={k.utilization_status === 'near_capacity' ? 'critical' : k.utilization_status === 'busy' ? 'average' : 'good'}
-          <KpiTile label="Active Sessions"  value={asset.active_sessions}  color="#22c55e" />
-          <KpiTile label="Total Ports"      value={asset.total_ports}      color="#475569" />
-          <KpiTile label="Port Avail."
-            value={k.port_availability_pct} unit="%"
-            color="#22c55e" />
+            status={k.utilization_status}
+            statusLevel={k.utilization_status === 'near_capacity' ? 'critical' : k.utilization_status === 'busy' ? 'average' : 'good'} />
+          <KpiTile label="Active Sessions"  value={asset.active_sessions}        color="#22c55e" />
+          <KpiTile label="Total Ports"      value={asset.total_ports}            color="#475569" />
+          <KpiTile label="Port Avail."      value={k.port_availability_pct} unit="%" color="#22c55e" />
           <KpiTile label="Grid Load"
             value={k.grid_load_pct} unit="%"
             color={k.grid_status === 'critical' ? '#dc2626' : k.grid_status === 'high' ? '#d97706' : '#16a34a'}
-            status={k.grid_status} statusLevel={k.grid_status === 'critical' ? 'critical' : k.grid_status === 'high' ? 'elevated' : 'good'} />
-          <KpiTile label="Util. Trend"      value={k.utilization_trend}    color="#8b5cf6" />
+            status={k.grid_status}
+            statusLevel={k.grid_status === 'critical' ? 'critical' : k.grid_status === 'high' ? 'elevated' : 'good'} />
+          <KpiTile label="Util. Trend"      value={k.utilization_trend}          color="#8b5cf6" />
         </div>
       </div>
 
       {/* ── Queue & Wait ── */}
       <div>
         <div style={{ fontSize: 11, fontWeight: 700, color: '#475569', textTransform: 'uppercase',
-          letterSpacing: '0.08em', marginBottom: 8 }}>⏱ Queue Wait Time Predictor</div>
+          letterSpacing: '0.08em', marginBottom: 8 }}>⏱ Queue & Wait</div>
         <div style={{ display:'grid', gridTemplateColumns:'repeat(auto-fill, minmax(140px,1fr))', gap:8 }}>
           <KpiTile label="Est. Wait Time"
             value={k.queue_wait_time_min} unit="min"
             color={k.queue_wait_time_min > 30 ? '#dc2626' : k.queue_wait_time_min > 15 ? '#d97706' : '#16a34a'}
-            status={k.queue_pressure} statusLevel={k.queue_pressure === 'critical' ? 'critical' : k.queue_pressure === 'high' ? 'elevated' : k.queue_pressure === 'moderate' ? 'average' : 'good'}
-          <KpiTile label="Queue Length"    value={k.queue_length}         color="#ef4444" />
-          <KpiTile label="Free Ports"      value={k.effective_available_ports} color="#22c55e" />
-          <KpiTile label="MTBF"
-            value={k.mtbf_h} unit="h"
-            color="#06b6d4"
+            status={k.queue_pressure}
+            statusLevel={k.queue_pressure === 'critical' ? 'critical' : k.queue_pressure === 'high' ? 'elevated' : k.queue_pressure === 'moderate' ? 'average' : 'good'} />
+          <KpiTile label="Queue Length"    value={k.queue_length}                    color="#ef4444" />
+          <KpiTile label="Free Ports"      value={k.effective_available_ports}       color="#22c55e" />
+          <KpiTile label="MTBF"            value={k.mtbf_h}              unit="h"    color="#06b6d4" />
           <KpiTile label="Predicted Fault" value={k.predicted_failure_in_h} unit="h" color="#f59e0b" />
-          <KpiTile label="Fault Count"     value={k.fault_count}          color="#ef4444" />
+          <KpiTile label="Fault Count"     value={k.fault_count}                     color="#ef4444" />
         </div>
       </div>
 
@@ -314,13 +307,15 @@ function ChargingStationDetail({ asset }) {
           <KpiTile label="Revenue Efficiency (RES)"
             value={k.revenue_efficiency_score_pct} unit="%"
             color={k.res_status === 'high_performing' ? '#16a34a' : k.res_status === 'normal' ? '#d97706' : '#dc2626'}
-            status={k.res_status} statusLevel={k.res_status === 'high_performing' ? 'excellent' : k.res_status === 'normal' ? 'good' : 'poor'}
-          <KpiTile label="Revenue/kWh"    value={k.revenue_per_kwh_inr}   unit="₹"  color="#22c55e" />
-          <KpiTile label="Revenue/Port"   value={k.revenue_per_port_inr}  unit="₹"  color="#8b5cf6" />
-          <KpiTile label="Avg Session Rev" value={k.avg_session_revenue_inr} unit="₹" color="#f59e0b" />
-          <KpiTile label="Revenue Gap"    value={k.revenue_gap_inr != null ? Math.round(k.revenue_gap_inr) : null} unit="₹"
-            color="#ef4444"
-          <KpiTile label="Rev/Port/Day"   value={k.revenue_per_port_per_day_inr} unit="₹" color="#06b6d4" />
+            status={k.res_status}
+            statusLevel={k.res_status === 'high_performing' ? 'excellent' : k.res_status === 'normal' ? 'good' : 'poor'} />
+          <KpiTile label="Revenue/kWh"     value={k.revenue_per_kwh_inr}            unit="₹" color="#22c55e" />
+          <KpiTile label="Revenue/Port"    value={k.revenue_per_port_inr}           unit="₹" color="#8b5cf6" />
+          <KpiTile label="Avg Session Rev" value={k.avg_session_revenue_inr}        unit="₹" color="#f59e0b" />
+          <KpiTile label="Revenue Gap"
+            value={k.revenue_gap_inr != null ? Math.round(k.revenue_gap_inr) : null}
+            unit="₹" color="#ef4444" />
+          <KpiTile label="Rev/Port/Day"    value={k.revenue_per_port_per_day_inr}   unit="₹" color="#06b6d4" />
         </div>
       </div>
     </div>
