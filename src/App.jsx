@@ -12,7 +12,7 @@ import { useWindowSize } from './hooks/useWindowSize.js';
 import {
   Lightning, Car, Wrench, AirplaneTilt, Factory,
   Truck, Bank, ShoppingCart, Hospital, ChartLineUp, Buildings,
-  CaretLeft, CaretRight, Eye, EyeSlash, LockKey, User, SignOut,
+  CaretLeft, CaretRight, Eye, EyeSlash, LockKey, User, SignOut, Heartbeat,
 } from '@phosphor-icons/react';
 
 // ── Hardcoded credentials ─────────────────────────────────────────────────────
@@ -169,7 +169,7 @@ function LoginScreen({ onLogin }) {
               style={{ filter: 'invert(1)', mixBlendMode: 'screen' }}
             />
 
-            {/* Pulse rings — expand outward from hub edge */}
+            {/* Heartbeat rings — expand outward from hub edge */}
             <circle cx={cx} cy={cy} r="12" fill="none"
               stroke="#257df0" strokeWidth="0.5" strokeOpacity="0.3">
               <animate attributeName="r" values="12;20;12" dur="3s" repeatCount="indefinite"/>
@@ -337,6 +337,7 @@ import RetailDashboard         from './industries/retail/RetailDashboard.jsx';
 import HealthcareDashboard     from './industries/healthcare/HealthcareDashboard.jsx';
 import StockExchangeDashboard  from './industries/stockexchange/StockExchangeDashboard.jsx';
 import TravelDashboard         from './industries/travel/TravelDashboard.jsx';
+import PlatformDashboard       from './industries/platform/PlatformDashboard.jsx';
 
 // ── Phosphor icon map per industry id ────────────────────────────────────────
 const INDUSTRY_ICONS = {
@@ -366,11 +367,12 @@ const DASHBOARDS = {
   healthcare:    HealthcareDashboard,
   stockexchange: StockExchangeDashboard,
   travel:        TravelDashboard,
+  platform:      PlatformDashboard,
 };
 
 const CONDENSE_BLUE = '#257df0';
 const CONDENSE_GREY = '#767678';
-const VALID_IDS = new Set(INDUSTRY_LIST.map(i => i.id));
+const VALID_IDS = new Set([...INDUSTRY_LIST.map(i => i.id), 'platform']);
 
 // ── Routing helpers ───────────────────────────────────────────────────────────
 function getIdFromHash() {
@@ -470,6 +472,49 @@ export default function App() {
     setAuthed(false);
   }
 
+  // ── Platform Health button (shared between sidebar and drawer) ─────────
+  function PlatformHealthButton({ showLabels, onSelect }) {
+    const isActive = activeId === 'platform';
+    return (
+      <button
+        onClick={() => { navigate('platform'); onSelect?.(); }}
+        title={!showLabels ? 'Platform Health' : undefined}
+        style={{
+          width: '100%',
+          display: 'flex', alignItems: 'center', gap: 10,
+          padding: showLabels ? '10px 16px' : '10px 0',
+          justifyContent: showLabels ? 'flex-start' : 'center',
+          background: isActive ? 'rgba(37,125,240,0.15)' : 'transparent',
+          borderLeft:  isActive ? `3px solid ${CONDENSE_BLUE}` : '3px solid transparent',
+          borderRight: 'none', borderTop: 'none', borderBottom: 'none',
+          cursor: 'pointer',
+          transition: 'all 0.12s',
+        }}
+      >
+        <Heartbeat
+          size={showLabels ? 18 : 20}
+          weight={isActive ? 'fill' : 'regular'}
+          color={isActive ? CONDENSE_BLUE : 'rgba(255,255,255,0.45)'}
+          style={{ flexShrink: 0 }}
+        />
+        {showLabels && (
+          <div style={{ textAlign: 'left', minWidth: 0, flex: 1 }}>
+            <div style={{
+              fontSize: 13, fontWeight: isActive ? 600 : 400,
+              color: isActive ? '#ffffff' : 'rgba(255,255,255,0.6)',
+              whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis',
+            }}>
+              Platform Health
+            </div>
+            <div style={{ fontSize: 9, color: 'rgba(255,255,255,0.35)', marginTop: 1 }}>
+              Uptime · SLA · DevOps
+            </div>
+          </div>
+        )}
+      </button>
+    );
+  }
+
   // ── Industry nav list (shared between sidebar and drawer) ──────────────
   function IndustryList({ showLabels, onSelect }) {
     return (
@@ -529,8 +574,10 @@ export default function App() {
 
   // ── Mobile layout: top bar + drawer ────────────────────────────────────
   if (isMobile) {
-    const activeInd = INDUSTRY_LIST.find(i => i.id === activeId);
-    const ActiveIcon = INDUSTRY_ICONS[activeId];
+    const activeInd = activeId === 'platform'
+      ? { name: 'Platform Health' }
+      : INDUSTRY_LIST.find(i => i.id === activeId);
+    const ActiveIcon = activeId === 'platform' ? Heartbeat : INDUSTRY_ICONS[activeId];
     return (
       <div style={{ display: 'flex', flexDirection: 'column', height: '100vh', background: '#f1f5f9', fontFamily: "'Inter', system-ui, sans-serif", overflow: 'hidden' }}>
 
@@ -601,6 +648,13 @@ export default function App() {
               {/* Industry list */}
               <div style={{ flex: 1, overflowY: 'auto', padding: '6px 0' }}>
                 <IndustryList showLabels={true} onSelect={() => setDrawerOpen(false)} />
+                <div style={{ borderTop: '1px solid rgba(255,255,255,0.06)', margin: '6px 0', paddingTop: 6 }}>
+                  <div style={{ fontSize: 8, fontWeight: 700, color: 'rgba(255,255,255,0.22)',
+                    textTransform: 'uppercase', letterSpacing: '0.15em', padding: '0 16px', marginBottom: 2 }}>
+                    DevOps
+                  </div>
+                  <PlatformHealthButton showLabels={true} onSelect={() => setDrawerOpen(false)} />
+                </div>
               </div>
 
               {/* Footer */}
@@ -722,6 +776,17 @@ export default function App() {
           display: 'flex', flexDirection: 'column', gap: 8,
           alignItems: showLabels ? 'stretch' : 'center',
         }}>
+          {/* Platform Health nav entry */}
+          <div style={{ borderTop: '1px solid rgba(255,255,255,0.06)', paddingTop: 6, marginTop: -2 }}>
+            {showLabels && (
+              <div style={{ fontSize: 8, fontWeight: 700, color: 'rgba(255,255,255,0.22)',
+                textTransform: 'uppercase', letterSpacing: '0.15em', padding: '0 16px', marginBottom: 2 }}>
+                DevOps
+              </div>
+            )}
+            <PlatformHealthButton showLabels={showLabels} />
+          </div>
+
           <button
             onClick={signOut}
             title="Sign out"

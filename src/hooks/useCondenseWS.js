@@ -60,7 +60,36 @@ export function useCondenseWS(apiUrl) {
       }
 
       if (msg.type === 'asset_update') {
-        setAssets(prev => ({ ...prev, [msg.data.asset_id]: msg.data }));
+        setAssets(prev => {
+          const incoming = msg.data;
+          const existing = prev[incoming.asset_id] || {};
+
+          // ── Commercial vehicles come from TWO transforms (VLD + Driver Analytics).
+          // Each broadcast carries only ONE transform's KPIs, but we need BOTH visible
+          // simultaneously. Merge KPIs instead of replacing, so neither source overwrites
+          // the other. Once both transforms have published for a given batch, the merged
+          // record will have the full set (rsli + driver_score + everything).
+          if (incoming.asset_type === 'commercial_vehicle') {
+            return {
+              ...prev,
+              [incoming.asset_id]: {
+                ...existing,
+                ...incoming,
+                // Deep-merge KPIs — accumulate from both VLD and Driver Analytics
+                kpis: { ...(existing.kpis || {}), ...(incoming.kpis || {}) },
+                // Track which transforms have contributed to this record
+                sources: [...new Set([
+                  ...(existing.sources || []),
+                  ...(incoming.sources || []),
+                  incoming.source || '',
+                ].filter(Boolean))],
+              },
+            };
+          }
+
+          // All other asset types: normal replace (single transform, no merge needed)
+          return { ...prev, [incoming.asset_id]: incoming };
+        });
         if (msg.data.has_alerts) {
           setStats(prev => prev ? { ...prev, last_updated: msg.data.processed_at } : prev);
         }

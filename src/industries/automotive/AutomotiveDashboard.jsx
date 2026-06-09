@@ -250,146 +250,302 @@ function KpiTileCV({ label, value, unit, color='#1e293b', algoFormula, status, s
   );
 }
 
-// ── Live Fleet Map (SVG, no dependencies) ─────────────────────
-// Plots all commercial vehicles on a lat/lon grid.
-// Color = speed band. Selected = larger dot + white ring.
-// Trail = last 6 positions fading.
+// ── Live Fleet Map — Fixed Hyderabad Metro viewport ───────────
+// Fixed bounding box so the map always shows Greater Hyderabad in full context.
+// Vehicles are plotted on top. India inset (bottom-right) shows state context.
 function FleetMap({ vehicles, selectedId, onSelect, posHistory }) {
-  const W = 600, H = 340;
-  const PAD = 24;
+  const W = 700, H = 380;
+  const PAD = 28;
 
-  // Compute bounding box
-  const positions = vehicles
-    .filter(v => v.latitude && v.longitude)
-    .map(v => ({ lat: v.latitude, lon: v.longitude }));
+  // ── FIXED viewport: Greater Hyderabad Metropolitan Area ──────
+  // This never auto-zooms — user always sees the full city context.
+  const MIN_LAT = 16.82, MAX_LAT = 17.68;
+  const MIN_LON = 78.12, MAX_LON = 78.82;
 
-  if (positions.length === 0) return (
-    <div style={{ height:H, display:'flex', alignItems:'center', justifyContent:'center',
-      color:'#94a3b8', fontSize:12, background:'#f8fafc', borderRadius:8 }}>
-      No vehicle positions yet…
-    </div>
-  );
-
-  let minLat = positions[0].lat, maxLat = positions[0].lat;
-  let minLon = positions[0].lon, maxLon = positions[0].lon;
-  positions.forEach(p => {
-    minLat = Math.min(minLat, p.lat); maxLat = Math.max(maxLat, p.lat);
-    minLon = Math.min(minLon, p.lon); maxLon = Math.max(maxLon, p.lon);
-  });
-  // Add padding to bounding box
-  const latPad = Math.max((maxLat - minLat) * 0.25, 0.01);
-  const lonPad = Math.max((maxLon - minLon) * 0.25, 0.01);
-  minLat -= latPad; maxLat += latPad;
-  minLon -= lonPad; maxLon += lonPad;
-
-  const toX = lon => PAD + ((lon - minLon) / (maxLon - minLon)) * (W - 2 * PAD);
-  const toY = lat => H - PAD - ((lat - minLat) / (maxLat - minLat)) * (H - 2 * PAD);
+  const toX = lon => PAD + ((lon - MIN_LON) / (MAX_LON - MIN_LON)) * (W - 2 * PAD);
+  const toY = lat => H - PAD - ((lat - MIN_LAT) / (MAX_LAT - MIN_LAT)) * (H - 2 * PAD);
 
   const speedColor = spd => {
-    if (spd < 1)  return '#94a3b8';   // idle
-    if (spd <= 40) return '#22c55e';  // urban
-    if (spd <= 60) return '#f59e0b';  // arterial
-    if (spd <= 80) return '#3b82f6';  // highway
-    return '#ef4444';                  // overspeed
+    if (spd < 1)   return '#94a3b8';
+    if (spd <= 40) return '#22c55e';
+    if (spd <= 60) return '#f59e0b';
+    if (spd <= 80) return '#3b82f6';
+    return '#ef4444';
   };
 
-  // Grid lines (lat/lon)
-  const gridLines = [];
-  const latStep = (maxLat - minLat) / 4;
-  const lonStep = (maxLon - minLon) / 4;
-  for (let i = 0; i <= 4; i++) {
-    const lat = minLat + i * latStep;
-    const lon = minLon + i * lonStep;
-    const y = toY(lat), x = toX(lon);
-    gridLines.push(
-      <line key={`lat${i}`} x1={PAD} x2={W-PAD} y1={y} y2={y} stroke="#d1d5db" strokeWidth="0.5" strokeDasharray="4 4" />,
-      <line key={`lon${i}`} x1={x} x2={x} y1={PAD} y2={H-PAD} stroke="#d1d5db" strokeWidth="0.5" strokeDasharray="4 4" />,
-    );
-  }
+  // ── Key Hyderabad area landmarks ──────────────────────────────
+  // Each: [lat, lon, label, labelOffset, type]
+  const LANDMARKS = [
+    [17.385, 78.486, 'Hyderabad',       [4,  12], 'city'],
+    [17.445, 78.500, 'Secunderabad',    [4,  12], 'district'],
+    [17.240, 78.430, '✈ Airport',       [4,  12], 'airport'],
+    [17.470, 78.410, 'Balanagar Ind.',  [4, -5],  'industrial'],
+    [17.395, 78.563, 'Uppal / ECIL',    [4,  12], 'district'],
+    [17.450, 78.368, 'Patancheru',      [-55, 8], 'industrial'],
+    [17.340, 78.548, 'LB Nagar',        [4,  12], 'district'],
+    [17.375, 78.375, 'HITEC City',      [-58, 8], 'district'],
+    [17.580, 78.475, 'Medchal',         [4,  12], 'district'],
+    [17.495, 78.495, 'Kompally',        [4, -5],  'district'],
+    [17.505, 78.568, 'Ghatkesar',       [4,  12], 'district'],
+    [17.298, 78.505, 'Hayathnagar',     [4,  12], 'district'],
+  ];
+
+  const LANDMARK_COLORS = {
+    city      : { dot:'#dc2626', text:'#991b1b', r:5, fw:700 },
+    district  : { dot:'#6b7280', text:'#374151', r:3, fw:500 },
+    airport   : { dot:'#1d4ed8', text:'#1e40af', r:4, fw:600 },
+    industrial: { dot:'#92400e', text:'#78350f', r:3, fw:500 },
+  };
+
+  // ── Delivery route corridors ──────────────────────────────────
+  // Approximate polylines matching the simulator's 5 route corridors.
+  // Drawn as faint dashed lines so users can see where deliveries run.
+  const ROUTE_CORRIDORS = [
+    { color:'#6366f1', name:'Balanagar–Mehdipatnam', pts:[[17.467,78.425],[17.400,78.432],[17.330,78.435],[17.250,78.445],[17.120,78.460],[17.040,78.480]] },
+    { color:'#0891b2', name:'Uppal–Yousufguda',      pts:[[17.400,78.560],[17.395,78.510],[17.390,78.470],[17.385,78.430],[17.380,78.400]] },
+    { color:'#059669', name:'Shamshabad–Secunderabad',pts:[[17.240,78.430],[17.300,78.455],[17.360,78.490],[17.420,78.500],[17.480,78.500]] },
+    { color:'#d97706', name:'ORR North-West Arc',     pts:[[17.540,78.380],[17.520,78.340],[17.490,78.310],[17.450,78.290],[17.410,78.295],[17.370,78.320]] },
+    { color:'#7c3aed', name:'Jeedimetla–LB Nagar',   pts:[[17.500,78.490],[17.430,78.500],[17.360,78.510],[17.290,78.520],[17.210,78.540]] },
+  ];
+
+  // ── India context inset (bottom-right, 90×108px) ──────────────
+  // Shows simplified India outline with Telangana highlighted and
+  // a star marker for Hyderabad — so the viewer immediately knows
+  // which state and part of India this fleet is operating in.
+  const IX = W - 104, IY = H - 122;  // inset top-left position in main SVG
+  const IW = 92, IH = 110;           // inset dimensions
+
+  // Lat/lon → inset SVG coords
+  // India spans roughly lat 8–37, lon 68–97
+  const toIX = lon => 2 + ((lon - 68) / 29) * (IW - 4);
+  const toIY = lat => (IH - 4) - ((lat - 8) / 29) * (IH - 4);
+
+  // Simplified India outline polygon (approximate coastal/border points)
+  const INDIA_PTS = [
+    [68.7,37.1],[74.0,37.0],[78.3,36.7],[80.5,35.5],[97.4,28.3],
+    [97.3,27.3],[92.6,22.1],[91.4,24.0],[88.4,21.5],[86.0,20.0],
+    [80.3,13.1],[79.9,10.8],[77.5,8.1],[76.3,8.6],[73.0,8.2],
+    [72.6,20.4],[72.4,23.5],[68.7,37.1],
+  ].map(([lon,lat]) => `${toIX(lon)},${toIY(lat)}`).join(' ');
+
+  // Simplified Telangana state boundary (approximate)
+  const TELANGANA_PTS = [
+    [77.2,19.9],[78.6,19.9],[80.4,19.4],[80.7,17.2],
+    [79.5,16.0],[78.3,16.0],[77.0,16.5],[77.0,18.5],[77.2,19.9],
+  ].map(([lon,lat]) => `${toIX(lon)},${toIY(lat)}`).join(' ');
+
+  // Hyderabad star position on inset
+  const hydIX = toIX(78.47);
+  const hydIY = toIY(17.38);
+
+  // ── Scale bar (approximate) ───────────────────────────────────
+  // At this viewport width (0.70° lon ≈ 68km), 0.1° lon ≈ 9.7km
+  const scaleKm = 10;
+  const scalePxPerKm = ((W - 2*PAD) / (MAX_LON - MIN_LON)) * (0.01023);  // 0.01023° per km at 17°N
+  const scalePx = Math.round(scaleKm * scalePxPerKm);
 
   return (
     <div style={{ position:'relative', userSelect:'none' }}>
-      <svg
-        viewBox={`0 0 ${W} ${H}`}
-        width="100%"
-        style={{ background:'#eef4e8', borderRadius:8, border:'1px solid #d1d5db', cursor:'default' }}
-      >
-        {/* Map background pattern - subtle roads simulation */}
-        <rect x={0} y={0} width={W} height={H} fill="#eef4e8" />
-        {/* Grid */}
-        {gridLines}
+      <svg viewBox={`0 0 ${W} ${H}`} width="100%"
+        style={{ borderRadius:10, border:'1px solid #d1d5db', cursor:'default', display:'block' }}>
 
-        {/* Trails for each vehicle */}
-        {vehicles.map(v => {
-          const trail = posHistory.current[v.asset_id] || [];
-          if (trail.length < 2) return null;
-          const pts = trail.map(p => `${toX(p.lon)},${toY(p.lat)}`).join(' ');
-          return <polyline key={`trail-${v.asset_id}`} points={pts}
-            fill="none" stroke={speedColor(v.veh_spd || 0)} strokeWidth="1.5" strokeOpacity="0.3" />;
+        {/* ── Map background ── */}
+        {/* Land fill (pale green-beige like OSM) */}
+        <rect x={0} y={0} width={W} height={H} fill="#F0EDE5" rx={8} />
+
+        {/* Subtle lat/lon grid */}
+        {[0,1,2,3,4].map(i => {
+          const lat = MIN_LAT + i * (MAX_LAT - MIN_LAT) / 4;
+          const lon = MIN_LON + i * (MAX_LON - MIN_LON) / 4;
+          return (
+            <g key={i}>
+              <line x1={PAD} x2={W-PAD} y1={toY(lat)} y2={toY(lat)} stroke="#D4CFC5" strokeWidth="0.6" strokeDasharray="3 6" />
+              <line x1={toX(lon)} x2={toX(lon)} y1={PAD} y2={H-PAD} stroke="#D4CFC5" strokeWidth="0.6" strokeDasharray="3 6" />
+              <text x={4} y={toY(lat)+3} fontSize={7} fill="#9ca3af" fontFamily="monospace">{lat.toFixed(2)}°</text>
+              <text x={toX(lon)-10} y={H-4} fontSize={7} fill="#9ca3af" fontFamily="monospace">{lon.toFixed(2)}°</text>
+            </g>
+          );
         })}
 
-        {/* Vehicle dots */}
-        {vehicles.map(v => {
-          if (!v.latitude || !v.longitude) return null;
-          const x = toX(v.longitude);
-          const y = toY(v.latitude);
-          const spd = v.veh_spd || 0;
-          const col = speedColor(spd);
-          const isSel = v.asset_id === selectedId;
-          const r = isSel ? 10 : 7;
+        {/* ── Delivery route corridors ── */}
+        {ROUTE_CORRIDORS.map(route => {
+          const pts = route.pts.map(([lat, lon]) => `${toX(lon)},${toY(lat)}`).join(' ');
           return (
-            <g key={v.asset_id} onClick={() => onSelect(v.asset_id === selectedId ? null : v.asset_id)}
-              style={{ cursor:'pointer' }}>
-              {/* Pulse ring for overspeed */}
-              {spd > 80 && (
-                <circle cx={x} cy={y} r={r + 4} fill="none" stroke="#ef4444" strokeWidth="1.5" strokeOpacity="0.5">
-                  <animate attributeName="r" values={`${r+2};${r+8};${r+2}`} dur="1.5s" repeatCount="indefinite" />
-                  <animate attributeName="stroke-opacity" values="0.6;0;0.6" dur="1.5s" repeatCount="indefinite" />
-                </circle>
-              )}
-              {/* Selection ring */}
-              {isSel && <circle cx={x} cy={y} r={r+4} fill="none" stroke="#ffffff" strokeWidth="2.5" />}
-              {/* Vehicle dot */}
-              <circle cx={x} cy={y} r={r} fill={col} stroke="#ffffff" strokeWidth={isSel?2:1.5} />
-              {/* Direction indicator (small arrow based on movement) */}
-              {spd > 1 && <polygon points={`${x},${y-r-3} ${x-3},${y-r+2} ${x+3},${y-r+2}`}
-                fill={col} opacity="0.8" />}
-              {/* Vehicle ID label */}
-              <text x={x + r + 3} y={y + 4} fontSize={isSel?10:8} fill="#374151" fontWeight={isSel?700:400}
-                fontFamily="system-ui" style={{ pointerEvents:'none' }}>
-                {v.asset_id}
+            <g key={route.name}>
+              {/* Road shadow */}
+              <polyline points={pts} fill="none" stroke="#ffffff" strokeWidth="4" strokeOpacity="0.5"
+                strokeLinecap="round" strokeLinejoin="round" />
+              {/* Road itself */}
+              <polyline points={pts} fill="none" stroke={route.color} strokeWidth="2"
+                strokeOpacity="0.45" strokeDasharray="6 4"
+                strokeLinecap="round" strokeLinejoin="round" />
+            </g>
+          );
+        })}
+
+        {/* ── Landmark dots and labels ── */}
+        {LANDMARKS.map(([lat, lon, label, [dx, dy], type]) => {
+          const lx = toX(lon), ly = toY(lat);
+          const s = LANDMARK_COLORS[type] || LANDMARK_COLORS.district;
+          return (
+            <g key={label}>
+              <circle cx={lx} cy={ly} r={s.r} fill={s.dot} opacity="0.7" />
+              <text x={lx + dx} y={ly + dy} fontSize={type === 'city' ? 10 : 8}
+                fontWeight={s.fw} fill={s.text} fontFamily="system-ui"
+                style={{ pointerEvents:'none' }}>
+                {label}
               </text>
             </g>
           );
         })}
 
-        {/* Speed legend */}
+        {/* ── Vehicle trails ── */}
+        {vehicles.map(v => {
+          const trail = posHistory.current[v.asset_id] || [];
+          if (trail.length < 2) return null;
+          const pts = trail.map(p => `${toX(p.lon)},${toY(p.lat)}`).join(' ');
+          return <polyline key={`trail-${v.asset_id}`} points={pts}
+            fill="none" stroke={speedColor(v.veh_spd || 0)} strokeWidth="2" strokeOpacity="0.35"
+            strokeLinecap="round" strokeLinejoin="round" />;
+        })}
+
+        {/* ── Vehicle dots ── */}
+        {vehicles.map(v => {
+          if (!v.latitude || !v.longitude) return null;
+          const vx = toX(v.longitude), vy = toY(v.latitude);
+          const spd = v.veh_spd || 0;
+          const col = speedColor(spd);
+          const isSel = v.asset_id === selectedId;
+          const r = isSel ? 10 : 7;
+          const isOff = spd < 1;
+          return (
+            <g key={v.asset_id}
+              onClick={() => onSelect(v.asset_id === selectedId ? null : v.asset_id)}
+              style={{ cursor:'pointer' }}>
+              {/* Overspeed pulse */}
+              {spd > 80 && (
+                <circle cx={vx} cy={vy} r={r+4} fill="none" stroke="#ef4444" strokeWidth="1.5">
+                  <animate attributeName="r" values={`${r+3};${r+10};${r+3}`} dur="1.5s" repeatCount="indefinite" />
+                  <animate attributeName="stroke-opacity" values="0.7;0;0.7" dur="1.5s" repeatCount="indefinite" />
+                </circle>
+              )}
+              {/* Idle dimming */}
+              {isOff && <circle cx={vx} cy={vy} r={r+2} fill="#94a3b8" opacity="0.15" />}
+              {/* Selection ring */}
+              {isSel && <circle cx={vx} cy={vy} r={r+5} fill="none" stroke="#1d4ed8" strokeWidth="2.5" />}
+              {/* White halo for readability */}
+              <circle cx={vx} cy={vy} r={r+1.5} fill="white" opacity="0.7" />
+              {/* Vehicle body */}
+              <circle cx={vx} cy={vy} r={r} fill={col} stroke="#ffffff" strokeWidth={isSel?2:1.5} />
+              {/* Direction arrow (only when moving) */}
+              {spd > 2 && <polygon points={`${vx},${vy-r-4} ${vx-3},${vy-r+1} ${vx+3},${vy-r+1}`} fill={col} />}
+              {/* ID label */}
+              <text x={vx + r + 4} y={vy + 4}
+                fontSize={isSel ? 10 : 8} fontWeight={isSel ? 700 : 500}
+                fill={isSel ? '#1d4ed8' : '#374151'} fontFamily="system-ui"
+                style={{ pointerEvents:'none' }}>
+                {v.asset_id}
+              </text>
+              {/* Speed tooltip on selected */}
+              {isSel && spd > 0 && (
+                <text x={vx + r + 4} y={vy + 16} fontSize={8} fill="#64748b" fontFamily="monospace">
+                  {spd.toFixed(0)} km/h
+                </text>
+              )}
+            </g>
+          );
+        })}
+
+        {/* ── Speed legend (bottom-left) ── */}
+        <rect x={PAD} y={H-PAD-90} width={86} height={86} rx={6}
+          fill="white" fillOpacity="0.88" stroke="#e2e8f0" strokeWidth="1" />
+        <text x={PAD+6} y={H-PAD-78} fontSize={8} fontWeight={700} fill="#374151" fontFamily="system-ui">
+          SPEED
+        </text>
         {[
-          { col:'#94a3b8', label:'Idle' },
-          { col:'#22c55e', label:'Urban <40' },
-          { col:'#f59e0b', label:'40-60' },
-          { col:'#3b82f6', label:'60-80' },
-          { col:'#ef4444', label:'>80 ⚠' },
+          { col:'#94a3b8', label:'Idle (engine on)' },
+          { col:'#22c55e', label:'Urban  0–40 km/h' },
+          { col:'#f59e0b', label:'Arterial  40–60' },
+          { col:'#3b82f6', label:'Highway  60–80' },
+          { col:'#ef4444', label:'Overspeed  >80 ⚠' },
         ].map((item, i) => (
-          <g key={item.label}>
-            <circle cx={PAD + 6} cy={H - PAD - 10 + i * (-14) - 4} r={4} fill={item.col} />
-            <text x={PAD + 14} y={H - PAD - 6 + i * (-14)} fontSize={8} fill="#374151" fontFamily="system-ui">{item.label} km/h</text>
+          <g key={item.col}>
+            <circle cx={PAD+10} cy={H-PAD-63 + i*14} r={4} fill={item.col} />
+            <text x={PAD+18} y={H-PAD-59 + i*14} fontSize={8} fill="#374151" fontFamily="system-ui">
+              {item.label}
+            </text>
           </g>
         ))}
 
-        {/* North indicator */}
-        <text x={W - PAD - 10} y={PAD + 14} fontSize={10} fill="#6b7280" fontWeight={700} fontFamily="system-ui">N↑</text>
-
-        {/* Coordinate labels */}
-        <text x={PAD} y={H - 4} fontSize={7} fill="#9ca3af" fontFamily="monospace">
-          {minLat.toFixed(3)}°N, {minLon.toFixed(3)}°E
+        {/* ── Route corridor legend (top-left) ── */}
+        <rect x={PAD} y={PAD} width={130} height={78} rx={6}
+          fill="white" fillOpacity="0.88" stroke="#e2e8f0" strokeWidth="1" />
+        <text x={PAD+6} y={PAD+13} fontSize={8} fontWeight={700} fill="#374151" fontFamily="system-ui">
+          DELIVERY CORRIDORS
         </text>
+        {ROUTE_CORRIDORS.map((r, i) => (
+          <g key={r.name}>
+            <line x1={PAD+6} y1={PAD+22+i*11} x2={PAD+18} y2={PAD+22+i*11}
+              stroke={r.color} strokeWidth="2" strokeDasharray="4 2" />
+            <text x={PAD+22} y={PAD+26+i*11} fontSize={7.5} fill="#374151" fontFamily="system-ui">
+              {r.name}
+            </text>
+          </g>
+        ))}
+
+        {/* ── Scale bar ── */}
+        <g transform={`translate(${W/2 - 40}, ${H - 16})`}>
+          <line x1={0} y1={0} x2={scalePx} y2={0} stroke="#6b7280" strokeWidth="2" />
+          <line x1={0} y1={-4} x2={0} y2={4} stroke="#6b7280" strokeWidth="1.5" />
+          <line x1={scalePx} y1={-4} x2={scalePx} y2={4} stroke="#6b7280" strokeWidth="1.5" />
+          <text x={scalePx/2} y={-5} textAnchor="middle" fontSize={8} fill="#6b7280" fontFamily="system-ui">
+            ~{scaleKm} km
+          </text>
+        </g>
+
+        {/* ── North arrow ── */}
+        <g transform={`translate(${W - PAD - 16}, ${PAD + 12})`}>
+          <polygon points="0,-10 -5,4 0,1 5,4" fill="#374151" />
+          <text x={0} y={17} textAnchor="middle" fontSize={9} fontWeight={700} fill="#374151" fontFamily="system-ui">N</text>
+        </g>
+
+        {/* ══ INDIA CONTEXT INSET (bottom-right) ══════════════════ */}
+        {/* Shows which state + which part of India */}
+        <rect x={IX-4} y={IY-4} width={IW+8} height={IH+8} rx={8}
+          fill="white" fillOpacity="0.93" stroke="#cbd5e1" strokeWidth="1.5" />
+        <text x={IX + IW/2} y={IY-8} textAnchor="middle" fontSize={8} fontWeight={700}
+          fill="#374151" fontFamily="system-ui">INDIA</text>
+
+        {/* India outline */}
+        <polygon points={INDIA_PTS} fill="#e8f5e9" stroke="#9ca3af" strokeWidth="0.8" />
+
+        {/* Telangana state highlighted */}
+        <polygon points={TELANGANA_PTS} fill="#fbbf24" fillOpacity="0.6" stroke="#d97706" strokeWidth="0.8" />
+
+        {/* Hyderabad star marker */}
+        <text x={IX + hydIX} y={IY + hydIY + 1} textAnchor="middle" fontSize={9} fill="#dc2626">★</text>
+        <text x={IX + hydIX + 6} y={IY + hydIY - 3} fontSize={6.5} fill="#991b1b" fontWeight={700} fontFamily="system-ui">
+          Hyd
+        </text>
+
+        {/* TS state label */}
+        <text x={IX + toIX(79.1)} y={IY + toIY(18.0)} textAnchor="middle"
+          fontSize={7} fontWeight={600} fill="#92400e" fontFamily="system-ui">TS</text>
+
+        {/* Inset label */}
+        <text x={IX + IW/2} y={IY + IH + 10} textAnchor="middle"
+          fontSize={7} fill="#64748b" fontFamily="system-ui">Telangana State</text>
       </svg>
 
-      {/* Map footer */}
-      <div style={{ display:'flex', justifyContent:'space-between', marginTop:6, fontSize:10, color:'#94a3b8' }}>
-        <span>{vehicles.length} vehicles · Live positions</span>
-        <span>Hyderabad Metropolitan Area</span>
+      {/* Map footer bar */}
+      <div style={{ display:'flex', justifyContent:'space-between', alignItems:'center',
+        marginTop:6, fontSize:10, color:'#64748b' }}>
+        <span>
+          🚐 <strong>{vehicles.filter(v => v.latitude).length}</strong> vehicles with GPS ·{' '}
+          <strong style={{ color:'#22c55e' }}>{vehicles.filter(v => (v.veh_spd||0) > 1).length}</strong> moving ·{' '}
+          <strong style={{ color:'#94a3b8' }}>{vehicles.filter(v => (v.veh_spd||0) < 1).length}</strong> idle
+        </span>
+        <span style={{ color:'#94a3b8' }}>Greater Hyderabad Metropolitan Area · Telangana, India</span>
       </div>
     </div>
   );
@@ -479,8 +635,17 @@ function CommercialVehicleCard({ asset, selected, onClick }) {
 // Shows VLD + Driver Analytics KPIs with algorithm explanations
 function CommercialVehicleDetail({ asset }) {
   const k = asset.kpis || {};
-  const hasVLD    = k.vehicle_load_score != null || k.rsli != null;
-  const hasDriver = k.driver_score != null || k.fuel_efficiency_rolling_kmpl != null;
+
+  // Which transforms have contributed to this vehicle's record so far?
+  const sources         = asset.sources || [];
+  const vldArrived      = sources.includes('vld_transform')             || k.rsli != null;
+  const driverArrived   = sources.includes('driver_analytics_transform')|| k.driver_score != null;
+  const bothArrived     = vldArrived && driverArrived;
+
+  // Always render BOTH sections. If a transform hasn't published yet,
+  // its tiles show "—" (waiting state) instead of being hidden entirely.
+  // This prevents the UI from jumping/flickering as transforms arrive at
+  // slightly different times from the same OBD batch.
 
   return (
     <div style={{ display:'flex', flexDirection:'column', gap:16 }}>
@@ -503,48 +668,49 @@ function CommercialVehicleDetail({ asset }) {
         </div>
       </div>
 
-      {/* ── VLD Algorithms ── */}
-      {hasVLD && (
-        <div>
-          <div style={{ fontSize:11, fontWeight:700, color:'#475569', textTransform:'uppercase',
-            letterSpacing:'0.08em', marginBottom:8 }}>⚖️ Vehicle Load Detection (VLD) Model</div>
+      {/* ── VLD Algorithms ── always rendered, shows "—" while waiting for first VLD batch */}
+      <div>
+          <div style={{ display:'flex', alignItems:'center', gap:8, marginBottom:8 }}>
+            <div style={{ fontSize:11, fontWeight:700, color:'#475569', textTransform:'uppercase', letterSpacing:'0.08em' }}>
+              ⚖️ Vehicle Load Detection (VLD) Model
+            </div>
+            {!vldArrived && (
+              <span style={{ fontSize:9, color:'#94a3b8', background:'#f1f5f9', padding:'2px 8px',
+                borderRadius:10, fontFamily:'monospace' }}>⏳ waiting for VLD transform…</span>
+            )}
+            {vldArrived && (
+              <span style={{ fontSize:9, color:'#16a34a', background:'#dcfce7', padding:'2px 8px', borderRadius:10 }}>✓ live</span>
+            )}
+          </div>
           <div style={{ display:'grid', gridTemplateColumns:'repeat(auto-fill, minmax(140px,1fr))', gap:8 }}>
             <KpiTileCV label="Vehicle Load Score"
               value={k.vehicle_load_score} unit="/100"
               color={k.vehicle_load_score > 75 ? '#dc2626' : k.vehicle_load_score > 50 ? '#d97706' : '#16a34a'}
-              status={k.load_classification} statusLevel={k.load_classification}
-              algoFormula="VLS = RSLI×0.45 + FRLF×0.45 + TPI×0.10 − 100" />
+              status={k.load_classification} statusLevel={k.load_classification} />
             <KpiTileCV label="RSLI (RPM-Speed)"
               value={k.rsli} unit="%"
               color={k.rsli > 175 ? '#dc2626' : k.rsli > 145 ? '#d97706' : '#16a34a'}
-              status={k.rsli_status} statusLevel={k.rsli_status === 'overloaded' ? 'critical' : k.rsli_status === 'heavy' ? 'average' : 'good'}
-              algoFormula="RSLI = actual_RPM / (750 + speed×18) × 100" />
+              status={k.rsli_status} statusLevel={k.rsli_status === 'overloaded' ? 'critical' : k.rsli_status === 'heavy' ? 'average' : 'good'} />
             <KpiTileCV label="FRLF (Fuel-Rate)"
               value={k.frlf} unit="%"
               color={k.frlf > 175 ? '#dc2626' : k.frlf > 145 ? '#d97706' : '#16a34a'}
-              status={k.frlf_status} statusLevel={k.frlf_status === 'overloaded' ? 'critical' : k.frlf_status === 'heavy' ? 'average' : 'good'}
-              algoFormula="FRLF = fuel_rate / (2.5 + speed×0.033) × 100" />
+              status={k.frlf_status} statusLevel={k.frlf_status === 'overloaded' ? 'critical' : k.frlf_status === 'heavy' ? 'average' : 'good'} />
             <KpiTileCV label="GVW Estimate"
               value={k.gvw_estimate_kg} unit="kg"
-              color="#8b5cf6"
-              algoFormula="GVW = P_engine×η / (g × Crr × speed)" />
+              color="#8b5cf6" />
             <KpiTileCV label="Payload Est."
               value={k.payload_estimate_kg} unit="kg"
-              color="#7c3aed"
-              algoFormula="payload = GVW − 1400 (empty weight)" />
+              color="#7c3aed" />
             <KpiTileCV label="Load %"
               value={k.load_pct_estimate} unit="%"
-              color={k.load_pct_estimate > 90 ? '#dc2626' : '#475569'}
-              algoFormula="load_pct = payload / 2100 × 100" />
+              color={k.load_pct_estimate > 90 ? '#dc2626' : '#475569'} />
             <KpiTileCV label="Engine Combustion"
               value={k.engine_combustion_load} unit="/100"
               color={k.ecls_status === 'optimal' ? '#16a34a' : k.ecls_status === 'acceptable' ? '#d97706' : '#dc2626'}
-              status={k.ecls_status} statusLevel={k.ecls_status === 'optimal' ? 'optimal' : 'acceptable'}
-              algoFormula="ECLS = 100 − RPM_deviation from optimal band" />
+              status={k.ecls_status} statusLevel={k.ecls_status === 'optimal' ? 'optimal' : 'acceptable'} />
             <KpiTileCV label="Traction Power"
               value={k.traction_power_index} unit="%"
-              color="#06b6d4"
-              algoFormula="TPI = road_power / engine_shaft_power × 100" />
+              color="#06b6d4" />
           </div>
           {k.persistent_overload && (
             <div style={{ marginTop:8, padding:'8px 12px', background:'#fee2e2', border:'1px solid #fca5a5',
@@ -552,14 +718,22 @@ function CommercialVehicleDetail({ asset }) {
               🚨 Persistent Overload — {k.overload_streak} consecutive batches. Requires immediate inspection.
             </div>
           )}
-        </div>
-      )}
+      </div>
 
-      {/* ── Driver Analytics ── */}
-      {hasDriver && (
-        <div>
-          <div style={{ fontSize:11, fontWeight:700, color:'#475569', textTransform:'uppercase',
-            letterSpacing:'0.08em', marginBottom:8 }}>👤 Driver Analytics Model</div>
+      {/* ── Driver Analytics ── always rendered, shows "—" while waiting for first Driver batch */}
+      <div>
+          <div style={{ display:'flex', alignItems:'center', gap:8, marginBottom:8 }}>
+            <div style={{ fontSize:11, fontWeight:700, color:'#475569', textTransform:'uppercase', letterSpacing:'0.08em' }}>
+              👤 Driver Analytics Model
+            </div>
+            {!driverArrived && (
+              <span style={{ fontSize:9, color:'#94a3b8', background:'#f1f5f9', padding:'2px 8px',
+                borderRadius:10, fontFamily:'monospace' }}>⏳ waiting for Driver Analytics transform…</span>
+            )}
+            {driverArrived && (
+              <span style={{ fontSize:9, color:'#16a34a', background:'#dcfce7', padding:'2px 8px', borderRadius:10 }}>✓ live</span>
+            )}
+          </div>
 
           {/* Driver score hero */}
           <div style={{ display:'flex', gap:10, marginBottom:10 }}>
@@ -585,37 +759,29 @@ function CommercialVehicleDetail({ asset }) {
           <div style={{ display:'grid', gridTemplateColumns:'repeat(auto-fill, minmax(140px,1fr))', gap:8 }}>
             <KpiTileCV label="Harsh Brakes (session)"
               value={k.harsh_brakes_session} unit="events"
-              color={k.harsh_brakes_session > 3 ? '#dc2626' : k.harsh_brakes_session > 0 ? '#d97706' : '#16a34a'}
-              algoFormula="HBD: speed drop > 10 km/h in one reading interval" />
+              color={k.harsh_brakes_session > 3 ? '#dc2626' : k.harsh_brakes_session > 0 ? '#d97706' : '#16a34a'} />
             <KpiTileCV label="Harsh Accel (session)"
               value={k.harsh_acc_session} unit="events"
-              color={k.harsh_acc_session > 3 ? '#dc2626' : k.harsh_acc_session > 0 ? '#d97706' : '#16a34a'}
-              algoFormula="HAD: speed rise > 10 km/h in one reading interval" />
+              color={k.harsh_acc_session > 3 ? '#dc2626' : k.harsh_acc_session > 0 ? '#d97706' : '#16a34a'} />
             <KpiTileCV label="Over-Rev Count"
               value={k.over_rev_session}
-              color={k.over_rev_session > 5 ? '#dc2626' : '#475569'}
-              algoFormula="ORD: ENG_SPD > 2800 RPM (LCV diesel optimal: 1200-2200)" />
+              color={k.over_rev_session > 5 ? '#dc2626' : '#475569'} />
             <KpiTileCV label="Idle Time"
               value={k.idle_time_session_min} unit="min"
-              color={k.idle_time_session_min > 15 ? '#d97706' : '#475569'}
-              algoFormula="IDLE: VEH_SPD<1 && ENG_SPD>700 RPM" />
+              color={k.idle_time_session_min > 15 ? '#d97706' : '#475569'} />
             <KpiTileCV label="Idle Fuel Wasted"
               value={k.idle_fuel_wasted_L} unit="L"
-              color={k.idle_fuel_wasted_L > 1 ? '#d97706' : '#16a34a'}
-              algoFormula="wasted_L = fuel_rate × idle_time_h" />
+              color={k.idle_fuel_wasted_L > 1 ? '#d97706' : '#16a34a'} />
             <KpiTileCV label="Idle Fuel Cost"
               value={k.idle_cost_inr} unit="₹"
-              color="#ef4444"
-              algoFormula="idle_L × ₹95/L (diesel price India)" />
+              color="#ef4444" />
             <KpiTileCV label="RPM Optimisation"
               value={k.rpm_optimisation_pct} unit="%"
-              color={k.rpm_optimisation_pct >= 75 ? '#16a34a' : k.rpm_optimisation_pct >= 55 ? '#d97706' : '#dc2626'}
-              algoFormula="% readings in optimal diesel band: 1200-2200 RPM" />
+              color={k.rpm_optimisation_pct >= 75 ? '#16a34a' : k.rpm_optimisation_pct >= 55 ? '#d97706' : '#dc2626'} />
             <KpiTileCV label="Session FE"
               value={k.fuel_efficiency_session_kmpl} unit="km/L"
               color={k.fe_rating === 'excellent' ? '#16a34a' : k.fe_rating === 'good' ? '#059669' : k.fe_rating === 'average' ? '#d97706' : '#dc2626'}
-              status={k.fe_rating} statusLevel={k.fe_rating === 'excellent' ? 'excellent' : k.fe_rating === 'good' ? 'good' : 'average'}
-              algoFormula="FE = Σ(speed×dt) / Σ(fuel_rate×dt)" />
+              status={k.fe_rating} statusLevel={k.fe_rating === 'excellent' ? 'excellent' : k.fe_rating === 'good' ? 'good' : 'average'} />
           </div>
 
           {/* Speed profile mini breakdown */}
@@ -649,6 +815,14 @@ function CommercialVehicleDetail({ asset }) {
               </div>
             </div>
           )}
+      </div>
+
+      {/* Both-arrived confirmation banner — sibling to VLD + Driver sections */}
+      {bothArrived && (
+        <div style={{ padding:'6px 12px', background:'#f0fdf4', border:'1px solid #bbf7d0',
+          borderRadius:8, fontSize:10, color:'#16a34a', display:'flex', alignItems:'center', gap:6 }}>
+          <span>✅</span>
+          <span>Both <strong>VLD</strong> + <strong>Driver Analytics</strong> data merged and live. All KPIs active.</span>
         </div>
       )}
     </div>
@@ -662,7 +836,7 @@ export default function AutomotiveDashboard() {
 
   const [selectedAsset, setSelectedAsset] = useState(null);
   const [history, setHistory] = useState([]);
-  const [activeTab, setActiveTab] = useState('telematics'); // 'telematics' | 'obd_fleet'
+  const [activeTab, setActiveTab] = useState('obd_fleet'); // 'telematics' | 'obd_fleet'
   const prevRef = useRef({});
   // Position history for map trails: {vehicle_id: [{lat, lon}, ...]}
   const posHistory = useRef({});
