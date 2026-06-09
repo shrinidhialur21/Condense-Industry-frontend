@@ -8,10 +8,6 @@ export default defineConfig({
     port: 5173,
   },
 
-  optimizeDeps: {
-    include: ['leaflet', 'react-leaflet'],
-  },
-
   build: {
     outDir: 'dist',
     sourcemap: false,
@@ -31,9 +27,6 @@ export default defineConfig({
           }
           // Recharts in its own chunk (large but only loaded on demand)
           if (id.includes('node_modules/recharts') || id.includes('node_modules/d3-') || id.includes('node_modules/victory-')) return 'recharts';
-          // leaflet + react-leaflet must share the same chunk as vendor (React).
-          // Putting them in a separate chunk causes React context (MapContext/useMap)
-          // to live in a different module instance from the React hook runtime → crash.
           if (id.includes('node_modules/')) return 'vendor';
         },
       },
