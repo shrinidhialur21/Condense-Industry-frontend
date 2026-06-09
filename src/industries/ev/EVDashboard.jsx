@@ -84,53 +84,285 @@ function AssetCard({ asset, selected, onClick }) {
   );
 }
 
-// ── Detail panels ──────────────────────────────────────────────
-function EVDetail({ asset }) {
-  const fields = [
-    { label: 'SOC',            val: asset.soc_pct,               unit: '%' },
-    { label: 'Range',          val: asset.estimated_range_km,     unit: 'km' },
-    { label: 'Battery Temp',   val: asset.battery_temp_c,         unit: '°C' },
-    { label: 'Speed',          val: asset.speed_kmh,              unit: 'km/h' },
-    { label: 'Battery Health', val: asset.battery_health_pct,     unit: '%' },
-    { label: 'Charge State',   val: asset.charging_status,        unit: '' },
-    { label: 'Odometer',       val: asset.odometer_km,            unit: 'km' },
-    { label: 'Pack Voltage',   val: asset.battery_voltage_v,      unit: 'V' },
-  ];
-  return <DetailGrid fields={fields} />;
-}
-
-function ChargingStationDetail({ asset }) {
-  const fields = [
-    { label: 'Power Delivery', val: asset.power_delivery_kw,    unit: 'kW' },
-    { label: 'Connectors',     val: `${asset.connectors_occupied ?? 0}/${asset.connectors_total ?? 0}`, unit: '' },
-    { label: 'Utilization',    val: asset.utilization_pct,       unit: '%' },
-    { label: 'Active Sessions',val: asset.active_sessions,       unit: '' },
-    { label: 'Avg Session kWh',val: asset.avg_session_kwh,       unit: 'kWh' },
-    { label: 'Voltage',        val: asset.voltage_v,             unit: 'V' },
-    { label: 'Uptime',         val: asset.uptime_pct,            unit: '%' },
-    { label: 'Queue',          val: asset.queue_length,          unit: '' },
-  ];
-  return <DetailGrid fields={fields} />;
-}
-
-function DetailGrid({ fields }) {
+// ── Algo tag — shows how a KPI is computed ────────────────────
+function AlgoTag({ formula }) {
   return (
-    <div style={{ display:'grid', gridTemplateColumns:'repeat(auto-fill, minmax(130px,1fr))', gap:10 }}>
-      {fields.map(f => (
-        <div key={f.label} style={{
-          background:'#ffffff', border:'1px solid #e2e8f0',
-          borderRadius:8, padding:'10px 12px'
-        }}>
-          <div style={{ fontSize:10, color:'#64748b', marginBottom:4 }}>{f.label}</div>
-          <div style={{ fontSize:18, fontWeight:700, color:'#1e293b', fontFamily:'monospace' }}>
-            {f.val != null ? (typeof f.val === 'number' ? Number(f.val).toFixed(1) : String(f.val)) : '—'}
-            {f.unit && <span style={{ fontSize:11, color:'#475569', marginLeft:3 }}>{f.unit}</span>}
-          </div>
-        </div>
-      ))}
+    <div style={{
+      fontSize: 9, color: '#7c3aed', background: 'rgba(124,58,237,0.07)',
+      border: '1px solid rgba(124,58,237,0.2)', borderRadius: 4,
+      padding: '2px 6px', marginTop: 3, fontFamily: 'monospace',
+      lineHeight: 1.4, wordBreak: 'break-word',
+    }}>
+      {formula}
     </div>
   );
 }
+
+// ── Colour-coded status chip ───────────────────────────────────
+function StatusChip({ label, level }) {
+  const colors = {
+    critical: { bg:'#fee2e2', color:'#dc2626' },
+    high_stress: { bg:'#fef3c7', color:'#d97706' },
+    elevated: { bg:'#fef9c3', color:'#ca8a04' },
+    normal: { bg:'#dcfce7', color:'#16a34a' },
+    idle: { bg:'#f1f5f9', color:'#64748b' },
+    excellent: { bg:'#dcfce7', color:'#16a34a' },
+    good: { bg:'#d1fae5', color:'#059669' },
+    average: { bg:'#fef3c7', color:'#d97706' },
+    poor: { bg:'#fee2e2', color:'#dc2626' },
+    replace_soon: { bg:'#fee2e2', color:'#dc2626' },
+    watch: { bg:'#fef3c7', color:'#d97706' },
+    healthy: { bg:'#dcfce7', color:'#16a34a' },
+    high_availability: { bg:'#dcfce7', color:'#16a34a' },
+    moderate: { bg:'#fef3c7', color:'#d97706' },
+    low: { bg:'#fff7ed', color:'#c2410c' },
+    unavailable: { bg:'#f1f5f9', color:'#64748b' },
+    above_benchmark: { bg:'#fee2e2', color:'#dc2626' },
+  };
+  const s = colors[level] || { bg:'#f1f5f9', color:'#64748b' };
+  return (
+    <span style={{ fontSize: 9, fontWeight: 700, padding: '2px 6px', borderRadius: 10,
+      background: s.bg, color: s.color, textTransform: 'uppercase', letterSpacing: '0.05em' }}>
+      {label || level}
+    </span>
+  );
+}
+
+// ── KPI metric tile with optional algo explanation ─────────────
+function KpiTile({ label, value, unit, color = '#1e293b', algoFormula, status, statusLevel }) {
+  const display = value != null
+    ? (typeof value === 'number' ? Number(value).toFixed(typeof value === 'number' && String(value).includes('.') ? 1 : 0) : String(value))
+    : '—';
+  return (
+    <div style={{ background:'#f8fafc', border:'1px solid #e2e8f0', borderRadius:10, padding:'10px 12px' }}>
+      <div style={{ fontSize:10, color:'#64748b', marginBottom:4 }}>{label}</div>
+      <div style={{ fontSize:18, fontWeight:700, color, fontFamily:'monospace', lineHeight:1 }}>
+        {display}
+        {unit && <span style={{ fontSize:10, color:'#94a3b8', marginLeft:3 }}>{unit}</span>}
+      </div>
+      {status && <div style={{ marginTop:4 }}><StatusChip label={status} level={statusLevel || status} /></div>}
+      {algoFormula && <AlgoTag formula={algoFormula} />}
+    </div>
+  );
+}
+
+// ── Detail panels ──────────────────────────────────────────────
+function EVDetail({ asset }) {
+  const k = asset.kpis || {};
+  return (
+    <div style={{ display: 'flex', flexDirection: 'column', gap: 16 }}>
+
+      {/* ── Telemetry row ── */}
+      <div>
+        <div style={{ fontSize: 11, fontWeight: 700, color: '#475569', textTransform: 'uppercase',
+          letterSpacing: '0.08em', marginBottom: 8 }}>Live Telemetry</div>
+        <div style={{ display:'grid', gridTemplateColumns:'repeat(auto-fill, minmax(120px,1fr))', gap:8 }}>
+          <KpiTile label="SOC"          value={asset.soc_pct}           unit="%" color="#3b82f6" />
+          <KpiTile label="Est. Range"   value={k.predicted_range_km ?? asset.estimated_range_km} unit="km" color="#22c55e" algoFormula="SOC × rated_range × SoH × temp_factor × speed_factor" />
+          <KpiTile label="Battery Temp" value={asset.battery_temp_c}    unit="°C" color={asset.battery_temp_c > 40 ? '#ef4444' : '#475569'} />
+          <KpiTile label="Speed"        value={asset.speed_kmh}         unit="km/h" color="#475569" />
+          <KpiTile label="Pack Voltage" value={asset.battery_voltage_v} unit="V"  color="#475569" />
+          <KpiTile label="Odometer"     value={asset.odometer_km}       unit="km" color="#475569" />
+          <KpiTile label="Charge State" value={asset.charging_status}   color="#8b5cf6" />
+          <KpiTile label="Regen Power"  value={asset.regeneration_kw}   unit="kW" color="#06b6d4" />
+        </div>
+      </div>
+
+      {/* ── Battery Health Algorithms ── */}
+      <div>
+        <div style={{ fontSize: 11, fontWeight: 700, color: '#475569', textTransform: 'uppercase',
+          letterSpacing: '0.08em', marginBottom: 8 }}>🔋 Battery Health Algorithms</div>
+        <div style={{ display:'grid', gridTemplateColumns:'repeat(auto-fill, minmax(140px,1fr))', gap:8 }}>
+          <KpiTile label="State of Health (SoH)"
+            value={k.soh_pct} unit="%"
+            color={k.soh_pct >= 90 ? '#16a34a' : k.soh_pct >= 80 ? '#d97706' : '#dc2626'}
+            status={k.soh_status} statusLevel={k.soh_status === 'excellent' ? 'excellent' : k.soh_status === 'good' ? 'good' : k.soh_status === 'fair' ? 'average' : 'poor'}
+            algoFormula="SoH = rolling(actual_range / rated_range) × 100" />
+          <KpiTile label="Thermal Score (TMS)"
+            value={k.thermal_score} unit="/100"
+            color={k.thermal_score >= 85 ? '#16a34a' : k.thermal_score >= 65 ? '#d97706' : '#dc2626'}
+            status={k.thermal_status} statusLevel={k.thermal_status === 'optimal' ? 'excellent' : k.thermal_status === 'acceptable' ? 'good' : 'critical'}
+            algoFormula="TMS = 100 − temp_deviation_penalty − trend_penalty" />
+          <KpiTile label="C-Rate Stress (CRSI)"
+            value={k.crsi} unit="/100"
+            color={k.crsi_level === 'critical' ? '#dc2626' : k.crsi_level === 'high' ? '#d97706' : '#16a34a'}
+            status={k.crsi_level} statusLevel={k.crsi_level}
+            algoFormula="CRSI = (|I| / capacity_Ah) / 2C × 60 + freq_penalty" />
+          <KpiTile label="C-Rate"
+            value={k.c_rate} unit="C"
+            color={k.c_rate > 1.5 ? '#ef4444' : '#475569'}
+            status={k.c_rate_status} statusLevel={k.c_rate_status === 'normal' ? 'good' : k.c_rate_status === 'elevated' ? 'average' : 'critical'}
+            algoFormula="C = |battery_current_A| / capacity_Ah" />
+        </div>
+      </div>
+
+      {/* ── Battery Lifecycle ── */}
+      <div>
+        <div style={{ fontSize: 11, fontWeight: 700, color: '#475569', textTransform: 'uppercase',
+          letterSpacing: '0.08em', marginBottom: 8 }}>📊 Battery Lifecycle</div>
+        <div style={{ display:'grid', gridTemplateColumns:'repeat(auto-fill, minmax(140px,1fr))', gap:8 }}>
+          <KpiTile label="Cycle Life Consumed"
+            value={k.battery_life_consumed_pct} unit="%"
+            color={k.cycle_life_status === 'replace_soon' ? '#dc2626' : k.cycle_life_status === 'watch' ? '#d97706' : '#16a34a'}
+            status={k.cycle_life_status} statusLevel={k.cycle_life_status}
+            algoFormula="cycles ≈ odometer / avg_range_per_charge" />
+          <KpiTile label="Est. Cycles"
+            value={k.estimated_full_cycles}
+            color="#475569"
+            algoFormula={`Rated: ${k.rated_cycle_life ?? 1000} cycles`} />
+          <KpiTile label="Cycles Remaining"
+            value={k.cycles_remaining}
+            color="#22c55e" />
+          <KpiTile label="km Until Replacement"
+            value={k.km_until_battery_replacement != null ? Math.round(k.km_until_battery_replacement / 1000) : null}
+            unit="k km"
+            color="#8b5cf6" />
+          <KpiTile label="Degradation Rate"
+            value={k.degradation_status}
+            color={k.degradation_status === 'rapid' ? '#dc2626' : '#475569'}
+            algoFormula="Slope of SoH over last 15 ticks" />
+          <KpiTile label="Est. Days to Replace"
+            value={k.estimated_days_to_replacement}
+            unit="days"
+            color={k.estimated_days_to_replacement != null && k.estimated_days_to_replacement < 180 ? '#ef4444' : '#475569'} />
+        </div>
+      </div>
+
+      {/* ── V2G + TCO ── */}
+      <div>
+        <div style={{ fontSize: 11, fontWeight: 700, color: '#475569', textTransform: 'uppercase',
+          letterSpacing: '0.08em', marginBottom: 8 }}>⚡ V2G + Operating Cost</div>
+        <div style={{ display:'grid', gridTemplateColumns:'repeat(auto-fill, minmax(140px,1fr))', gap:8 }}>
+          <KpiTile label="V2G Readiness"
+            value={k.v2g_readiness_score} unit="/100"
+            color={k.v2g_readiness_score >= 70 ? '#16a34a' : k.v2g_readiness_score >= 40 ? '#d97706' : '#94a3b8'}
+            status={k.v2g_status} statusLevel={k.v2g_status === 'high_availability' ? 'excellent' : k.v2g_status === 'moderate' ? 'average' : 'idle'}
+            algoFormula="V2G = SoH × (SOC−20%) / 80% × 100" />
+          <KpiTile label="V2G Available"
+            value={k.v2g_available_kwh} unit="kWh"
+            color="#22c55e"
+            algoFormula="(SOC−20%) × capacity_kWh × SoH_factor" />
+          <KpiTile label="V2G Eligible"
+            value={k.v2g_eligible ? 'YES' : 'NO'}
+            color={k.v2g_eligible ? '#16a34a' : '#94a3b8'} />
+          <KpiTile label="TCO per km"
+            value={k.tco_per_km_inr} unit="₹/km"
+            color={k.tco_rating === 'excellent' ? '#16a34a' : k.tco_rating === 'good' ? '#d97706' : '#ef4444'}
+            status={k.tco_rating} statusLevel={k.tco_rating === 'excellent' ? 'excellent' : k.tco_rating === 'good' ? 'good' : 'critical'}
+            algoFormula="energy_cost + battery_wear − maintenance_savings" />
+          <KpiTile label="Energy Efficiency"
+            value={k.energy_efficiency_wh_km} unit="Wh/km"
+            color={k.efficiency_rating === 'excellent' ? '#16a34a' : k.efficiency_rating === 'good' ? '#d97706' : '#ef4444'}
+            status={k.efficiency_rating} statusLevel={k.efficiency_rating === 'excellent' ? 'excellent' : k.efficiency_rating === 'good' ? 'good' : 'poor'}
+            algoFormula="η = |V×I| / speed_kmh" />
+          <KpiTile label="vs ICE Savings"
+            value={k.tco_vs_ice_savings_pct} unit="%"
+            color="#22c55e"
+            algoFormula="(1 − tco/₹10) × 100" />
+        </div>
+      </div>
+
+      {/* ── Charging ── */}
+      {asset.charging_status !== 'discharging' && (
+        <div>
+          <div style={{ fontSize: 11, fontWeight: 700, color: '#475569', textTransform: 'uppercase',
+            letterSpacing: '0.08em', marginBottom: 8 }}>🔌 Charging Analysis</div>
+          <div style={{ display:'grid', gridTemplateColumns:'repeat(auto-fill, minmax(140px,1fr))', gap:8 }}>
+            <KpiTile label="Charge Speed (CSI)"
+              value={k.charge_speed_index_pct} unit="%"
+              color="#3b82f6"
+              status={k.csi_status} statusLevel={k.csi_status === 'optimal' ? 'excellent' : k.csi_status === 'normal' ? 'good' : 'critical'}
+              algoFormula="CSI = actual_kW / (max_kW × taper_factor) × 100" />
+            <KpiTile label="Est. Charging Eff."
+              value={k.estimated_charging_efficiency} unit="%"
+              color="#22c55e"
+              algoFormula="≈93% − thermal_loss (AC→DC losses)" />
+            <KpiTile label="Instant Power"
+              value={k.instantaneous_power_kw} unit="kW"
+              color="#8b5cf6" />
+            <KpiTile label="Taper Zone"
+              value={k.is_in_taper_zone ? 'YES (SOC>80%)' : 'NO'}
+              color="#475569"
+              algoFormula="Above 80% SOC, CSI naturally falls (normal)" />
+          </div>
+        </div>
+      )}
+    </div>
+  );
+}
+
+function ChargingStationDetail({ asset }) {
+  const k = asset.kpis || {};
+  return (
+    <div style={{ display: 'flex', flexDirection: 'column', gap: 16 }}>
+
+      {/* ── Utilisation ── */}
+      <div>
+        <div style={{ fontSize: 11, fontWeight: 700, color: '#475569', textTransform: 'uppercase',
+          letterSpacing: '0.08em', marginBottom: 8 }}>📊 Station Utilisation</div>
+        <div style={{ display:'grid', gridTemplateColumns:'repeat(auto-fill, minmax(130px,1fr))', gap:8 }}>
+          <KpiTile label="Port Utilisation"
+            value={k.utilization_pct ?? asset.utilization_pct} unit="%"
+            color="#3b82f6"
+            status={k.utilization_status} statusLevel={k.utilization_status === 'near_capacity' ? 'critical' : k.utilization_status === 'busy' ? 'average' : 'good'}
+            algoFormula="CUI = active_sessions / total_ports × 100" />
+          <KpiTile label="Active Sessions"  value={asset.active_sessions}  color="#22c55e" />
+          <KpiTile label="Total Ports"      value={asset.total_ports}      color="#475569" />
+          <KpiTile label="Port Avail."
+            value={k.port_availability_pct} unit="%"
+            color="#22c55e" />
+          <KpiTile label="Grid Load"
+            value={k.grid_load_pct} unit="%"
+            color={k.grid_status === 'critical' ? '#dc2626' : k.grid_status === 'high' ? '#d97706' : '#16a34a'}
+            status={k.grid_status} statusLevel={k.grid_status === 'critical' ? 'critical' : k.grid_status === 'high' ? 'elevated' : 'good'} />
+          <KpiTile label="Util. Trend"      value={k.utilization_trend}    color="#8b5cf6" />
+        </div>
+      </div>
+
+      {/* ── Queue & Wait ── */}
+      <div>
+        <div style={{ fontSize: 11, fontWeight: 700, color: '#475569', textTransform: 'uppercase',
+          letterSpacing: '0.08em', marginBottom: 8 }}>⏱ Queue Wait Time Predictor</div>
+        <div style={{ display:'grid', gridTemplateColumns:'repeat(auto-fill, minmax(140px,1fr))', gap:8 }}>
+          <KpiTile label="Est. Wait Time"
+            value={k.queue_wait_time_min} unit="min"
+            color={k.queue_wait_time_min > 30 ? '#dc2626' : k.queue_wait_time_min > 15 ? '#d97706' : '#16a34a'}
+            status={k.queue_pressure} statusLevel={k.queue_pressure === 'critical' ? 'critical' : k.queue_pressure === 'high' ? 'elevated' : k.queue_pressure === 'moderate' ? 'average' : 'good'}
+            algoFormula="QWTP = queue × (avg_session/2) / free_ports" />
+          <KpiTile label="Queue Length"    value={k.queue_length}         color="#ef4444" />
+          <KpiTile label="Free Ports"      value={k.effective_available_ports} color="#22c55e" />
+          <KpiTile label="MTBF"
+            value={k.mtbf_h} unit="h"
+            color="#06b6d4"
+            algoFormula="Total uptime / number of fault events" />
+          <KpiTile label="Predicted Fault" value={k.predicted_failure_in_h} unit="h" color="#f59e0b" />
+          <KpiTile label="Fault Count"     value={k.fault_count}          color="#ef4444" />
+        </div>
+      </div>
+
+      {/* ── Revenue ── */}
+      <div>
+        <div style={{ fontSize: 11, fontWeight: 700, color: '#475569', textTransform: 'uppercase',
+          letterSpacing: '0.08em', marginBottom: 8 }}>💰 Revenue Efficiency</div>
+        <div style={{ display:'grid', gridTemplateColumns:'repeat(auto-fill, minmax(140px,1fr))', gap:8 }}>
+          <KpiTile label="Revenue Efficiency (RES)"
+            value={k.revenue_efficiency_score_pct} unit="%"
+            color={k.res_status === 'high_performing' ? '#16a34a' : k.res_status === 'normal' ? '#d97706' : '#dc2626'}
+            status={k.res_status} statusLevel={k.res_status === 'high_performing' ? 'excellent' : k.res_status === 'normal' ? 'good' : 'poor'}
+            algoFormula="RES = actual_revenue / (ports × max_kW × 16h × ₹14) × 100" />
+          <KpiTile label="Revenue/kWh"    value={k.revenue_per_kwh_inr}   unit="₹"  color="#22c55e" />
+          <KpiTile label="Revenue/Port"   value={k.revenue_per_port_inr}  unit="₹"  color="#8b5cf6" />
+          <KpiTile label="Avg Session Rev" value={k.avg_session_revenue_inr} unit="₹" color="#f59e0b" />
+          <KpiTile label="Revenue Gap"    value={k.revenue_gap_inr != null ? Math.round(k.revenue_gap_inr) : null} unit="₹"
+            color="#ef4444"
+            algoFormula="theoretical_max − actual_revenue" />
+          <KpiTile label="Rev/Port/Day"   value={k.revenue_per_port_per_day_inr} unit="₹" color="#06b6d4" />
+        </div>
+      </div>
+    </div>
+  );
+}
+
 
 const DETAIL_COMPONENTS = {
   ev_vehicle:       EVDetail,
@@ -169,6 +401,23 @@ export default function EVDashboard() {
   const chargingNow    = evs.filter(a => a.charging_status === 'fast_charging' || a.charging_status === 'slow_charging').length;
   const totalPowerKW   = stations.reduce((s, a) => s + (a.power_delivery_kw ?? 0), 0).toFixed(1);
   const criticalAlerts = alerts.filter(a => a.severity === 'critical').length;
+
+  // New fleet-level KPIs from processor algorithms
+  const avgSoH = evs.length && evs.some(a => a.kpis?.soh_pct != null)
+    ? Math.round(evs.filter(a => a.kpis?.soh_pct != null).reduce((s, a) => s + a.kpis.soh_pct, 0)
+        / evs.filter(a => a.kpis?.soh_pct != null).length)
+    : null;
+  const fleetV2GkWh = evs.reduce((s, a) => s + (a.kpis?.v2g_available_kwh ?? 0), 0).toFixed(1);
+  const avgCRSI = evs.length && evs.some(a => a.kpis?.crsi != null)
+    ? Math.round(evs.filter(a => a.kpis?.crsi != null).reduce((s, a) => s + a.kpis.crsi, 0)
+        / evs.filter(a => a.kpis?.crsi != null).length)
+    : null;
+  const avgTCO = evs.length && evs.some(a => a.kpis?.tco_per_km_inr != null)
+    ? (evs.filter(a => a.kpis?.tco_per_km_inr != null).reduce((s, a) => s + a.kpis.tco_per_km_inr, 0)
+        / evs.filter(a => a.kpis?.tco_per_km_inr != null).length).toFixed(2)
+    : null;
+  const stationsNearCapacity = stations.filter(a => (a.kpis?.utilization_pct ?? a.utilization_pct) >= 90).length;
+  const totalQueueWait = stations.reduce((s, a) => s + (a.kpis?.queue_wait_time_min ?? 0), 0);
 
 
   // ── Not configured guard ─────────────────────────────────────────────────────
@@ -230,12 +479,21 @@ export default function EVDashboard() {
 
       {/* KPIs */}
       <div style={{ display:'flex', gap:12, marginBottom:24, flexWrap:'wrap' }}>
-        <KPICard label="Fleet Avg SOC"       value={avgSoc}        unit="%"   color="#3b82f6" />
-        <KPICard label="EVs Online"          value={evs.length}               color="#22c55e" />
-        <KPICard label="Charging Now"        value={chargingNow}              color="#8b5cf6" />
-        <KPICard label="Charging Stations"   value={stations.length}          color="#06b6d4" />
-        <KPICard label="Total Charge Power"  value={totalPowerKW}  unit="kW"  color="#f59e0b" />
-        <KPICard label="Critical Alerts"     value={criticalAlerts}           color="#ef4444" />
+        <KPICard label="Fleet Avg SOC"        value={avgSoc}         unit="%"    color="#3b82f6" />
+        <KPICard label="EVs Online"           value={evs.length}                 color="#22c55e" />
+        <KPICard label="Charging Now"         value={chargingNow}                color="#8b5cf6" />
+        <KPICard label="Fleet Avg SoH"        value={avgSoH}         unit="%"    color={avgSoH != null && avgSoH < 80 ? '#ef4444' : '#22c55e'}
+          sub="Battery health (replace at <80%)" />
+        <KPICard label="V2G Fleet Capacity"   value={fleetV2GkWh}    unit="kWh"  color="#06b6d4"
+          sub="Grid-exportable energy available" />
+        <KPICard label="Avg C-Rate Stress"    value={avgCRSI}                    color={avgCRSI != null && avgCRSI > 50 ? '#ef4444' : '#f59e0b'}
+          sub="Battery abuse index (0–100)" />
+        <KPICard label="Avg TCO/km"           value={avgTCO}         unit="₹"    color="#7c3aed"
+          sub="energy + wear − maintenance" />
+        <KPICard label="Stations Near Capacity" value={stationsNearCapacity}      color={stationsNearCapacity > 0 ? '#f59e0b' : '#22c55e'}
+          sub={`of ${stations.length} stations`} />
+        <KPICard label="Total Charge Power"   value={totalPowerKW}   unit="kW"   color="#f59e0b" />
+        <KPICard label="Critical Alerts"      value={criticalAlerts}             color="#ef4444" />
       </div>
 
       <div style={{ display:'grid', gridTemplateColumns: isMobile || isTablet ? '1fr' : '280px 1fr', gap:20, marginBottom:20 }}>
