@@ -2,6 +2,8 @@
 // Live Automotive & Telematics dashboard — vehicles with OBD2, GPS, CAN bus data.
 
 import { useState, useEffect, useRef, useMemo } from "react";
+import { MapContainer, TileLayer, CircleMarker, Polyline, Popup, useMap } from 'react-leaflet';
+import 'leaflet/dist/leaflet.css';
 import {
   LineChart,
   Line,
@@ -250,21 +252,25 @@ function KpiTileCV({ label, value, unit, color='#1e293b', algoFormula, status, s
   );
 }
 
-// ── Live Fleet Map — Fixed Hyderabad Metro viewport ───────────
-// Fixed bounding box so the map always shows Greater Hyderabad in full context.
-// Vehicles are plotted on top. India inset (bottom-right) shows state context.
+// ── Live Fleet Map — Leaflet + OpenStreetMap tiles ────────────
+function MapRecenter({ vehicles }) {
+  const map = useMap();
+  useEffect(() => {
+    const withGPS = vehicles.filter(v => v.latitude && v.longitude);
+    if (withGPS.length > 0) {
+      const lats = withGPS.map(v => v.latitude);
+      const lons = withGPS.map(v => v.longitude);
+      const bounds = [
+        [Math.min(...lats) - 0.02, Math.min(...lons) - 0.02],
+        [Math.max(...lats) + 0.02, Math.max(...lons) + 0.02],
+      ];
+      map.fitBounds(bounds, { maxZoom: 13, animate: true });
+    }
+  }, [vehicles.length]);
+  return null;
+}
+
 function FleetMap({ vehicles, selectedId, onSelect, posHistory }) {
-  const W = 700, H = 380;
-  const PAD = 28;
-
-  // ── FIXED viewport: Greater Hyderabad Metropolitan Area ──────
-  // This never auto-zooms — user always sees the full city context.
-  const MIN_LAT = 16.82, MAX_LAT = 17.68;
-  const MIN_LON = 78.12, MAX_LON = 78.82;
-
-  const toX = lon => PAD + ((lon - MIN_LON) / (MAX_LON - MIN_LON)) * (W - 2 * PAD);
-  const toY = lat => H - PAD - ((lat - MIN_LAT) / (MAX_LAT - MIN_LAT)) * (H - 2 * PAD);
-
   const speedColor = spd => {
     if (spd < 1)   return '#94a3b8';
     if (spd <= 40) return '#22c55e';
@@ -273,279 +279,95 @@ function FleetMap({ vehicles, selectedId, onSelect, posHistory }) {
     return '#ef4444';
   };
 
-  // ── Key Hyderabad area landmarks ──────────────────────────────
-  // Each: [lat, lon, label, labelOffset, type]
-  const LANDMARKS = [
-    [17.385, 78.486, 'Hyderabad',       [4,  12], 'city'],
-    [17.445, 78.500, 'Secunderabad',    [4,  12], 'district'],
-    [17.240, 78.430, '✈ Airport',       [4,  12], 'airport'],
-    [17.470, 78.410, 'Balanagar Ind.',  [4, -5],  'industrial'],
-    [17.395, 78.563, 'Uppal / ECIL',    [4,  12], 'district'],
-    [17.450, 78.368, 'Patancheru',      [-55, 8], 'industrial'],
-    [17.340, 78.548, 'LB Nagar',        [4,  12], 'district'],
-    [17.375, 78.375, 'HITEC City',      [-58, 8], 'district'],
-    [17.580, 78.475, 'Medchal',         [4,  12], 'district'],
-    [17.495, 78.495, 'Kompally',        [4, -5],  'district'],
-    [17.505, 78.568, 'Ghatkesar',       [4,  12], 'district'],
-    [17.298, 78.505, 'Hayathnagar',     [4,  12], 'district'],
-  ];
-
-  const LANDMARK_COLORS = {
-    city      : { dot:'#dc2626', text:'#991b1b', r:5, fw:700 },
-    district  : { dot:'#6b7280', text:'#374151', r:3, fw:500 },
-    airport   : { dot:'#1d4ed8', text:'#1e40af', r:4, fw:600 },
-    industrial: { dot:'#92400e', text:'#78350f', r:3, fw:500 },
-  };
-
-  // ── Delivery route corridors ──────────────────────────────────
-  // Approximate polylines matching the simulator's 5 route corridors.
-  // Drawn as faint dashed lines so users can see where deliveries run.
   const ROUTE_CORRIDORS = [
-    { color:'#6366f1', name:'Balanagar–Mehdipatnam', pts:[[17.467,78.425],[17.400,78.432],[17.330,78.435],[17.250,78.445],[17.120,78.460],[17.040,78.480]] },
-    { color:'#0891b2', name:'Uppal–Yousufguda',      pts:[[17.400,78.560],[17.395,78.510],[17.390,78.470],[17.385,78.430],[17.380,78.400]] },
-    { color:'#059669', name:'Shamshabad–Secunderabad',pts:[[17.240,78.430],[17.300,78.455],[17.360,78.490],[17.420,78.500],[17.480,78.500]] },
-    { color:'#d97706', name:'ORR North-West Arc',     pts:[[17.540,78.380],[17.520,78.340],[17.490,78.310],[17.450,78.290],[17.410,78.295],[17.370,78.320]] },
-    { color:'#7c3aed', name:'Jeedimetla–LB Nagar',   pts:[[17.500,78.490],[17.430,78.500],[17.360,78.510],[17.290,78.520],[17.210,78.540]] },
+    { color:'#6366f1', pts:[[17.467,78.425],[17.400,78.432],[17.330,78.435],[17.250,78.445],[17.120,78.460]] },
+    { color:'#0891b2', pts:[[17.400,78.560],[17.395,78.510],[17.390,78.470],[17.385,78.430],[17.380,78.400]] },
+    { color:'#059669', pts:[[17.240,78.430],[17.300,78.455],[17.360,78.490],[17.420,78.500],[17.480,78.500]] },
+    { color:'#d97706', pts:[[17.540,78.380],[17.520,78.340],[17.490,78.310],[17.450,78.290],[17.410,78.295]] },
+    { color:'#7c3aed', pts:[[17.500,78.490],[17.430,78.500],[17.360,78.510],[17.290,78.520],[17.210,78.540]] },
   ];
-
-  // ── India context inset (bottom-right, 90×108px) ──────────────
-  // Shows simplified India outline with Telangana highlighted and
-  // a star marker for Hyderabad — so the viewer immediately knows
-  // which state and part of India this fleet is operating in.
-  const IX = W - 104, IY = H - 122;  // inset top-left position in main SVG
-  const IW = 92, IH = 110;           // inset dimensions
-
-  // Lat/lon → inset SVG coords
-  // India spans roughly lat 8–37, lon 68–97
-  const toIX = lon => 2 + ((lon - 68) / 29) * (IW - 4);
-  const toIY = lat => (IH - 4) - ((lat - 8) / 29) * (IH - 4);
-
-  // Simplified India outline polygon (approximate coastal/border points)
-  const INDIA_PTS = [
-    [68.7,37.1],[74.0,37.0],[78.3,36.7],[80.5,35.5],[97.4,28.3],
-    [97.3,27.3],[92.6,22.1],[91.4,24.0],[88.4,21.5],[86.0,20.0],
-    [80.3,13.1],[79.9,10.8],[77.5,8.1],[76.3,8.6],[73.0,8.2],
-    [72.6,20.4],[72.4,23.5],[68.7,37.1],
-  ].map(([lon,lat]) => `${toIX(lon)},${toIY(lat)}`).join(' ');
-
-  // Simplified Telangana state boundary (approximate)
-  const TELANGANA_PTS = [
-    [77.2,19.9],[78.6,19.9],[80.4,19.4],[80.7,17.2],
-    [79.5,16.0],[78.3,16.0],[77.0,16.5],[77.0,18.5],[77.2,19.9],
-  ].map(([lon,lat]) => `${toIX(lon)},${toIY(lat)}`).join(' ');
-
-  // Hyderabad star position on inset
-  const hydIX = toIX(78.47);
-  const hydIY = toIY(17.38);
-
-  // ── Scale bar (approximate) ───────────────────────────────────
-  // At this viewport width (0.70° lon ≈ 68km), 0.1° lon ≈ 9.7km
-  const scaleKm = 10;
-  const scalePxPerKm = ((W - 2*PAD) / (MAX_LON - MIN_LON)) * (0.01023);  // 0.01023° per km at 17°N
-  const scalePx = Math.round(scaleKm * scalePxPerKm);
 
   return (
-    <div style={{ position:'relative', userSelect:'none' }}>
-      <svg viewBox={`0 0 ${W} ${H}`} width="100%"
-        style={{ borderRadius:10, border:'1px solid #d1d5db', cursor:'default', display:'block' }}>
+    <div style={{ borderRadius:10, overflow:'hidden', border:'1px solid #d1d5db', position:'relative' }}>
+      {/* Speed legend overlay */}
+      <div style={{
+        position:'absolute', zIndex:1000, top:8, left:8,
+        background:'rgba(255,255,255,0.93)', borderRadius:8, padding:'6px 10px',
+        fontSize:10, boxShadow:'0 1px 4px rgba(0,0,0,0.12)', lineHeight:1.8,
+      }}>
+        {[['#94a3b8','Idle'],['#22c55e','0–40 km/h'],['#f59e0b','40–60'],['#3b82f6','60–80'],['#ef4444','>80 ⚠']].map(([c,l]) => (
+          <div key={c} style={{ display:'flex', alignItems:'center', gap:5 }}>
+            <span style={{ width:8, height:8, borderRadius:'50%', background:c, display:'inline-block', flexShrink:0 }}/>
+            <span style={{ color:'#374151' }}>{l}</span>
+          </div>
+        ))}
+      </div>
 
-        {/* ── Map background ── */}
-        {/* Land fill (pale green-beige like OSM) */}
-        <rect x={0} y={0} width={W} height={H} fill="#F0EDE5" rx={8} />
+      <MapContainer
+        center={[17.385, 78.486]}
+        zoom={11}
+        style={{ height:400, width:'100%' }}
+        scrollWheelZoom={true}
+      >
+        <TileLayer
+          attribution='&copy; <a href="https://www.openstreetmap.org/copyright">OpenStreetMap</a>'
+          url="https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png"
+        />
+        <MapRecenter vehicles={vehicles} />
 
-        {/* Subtle lat/lon grid */}
-        {[0,1,2,3,4].map(i => {
-          const lat = MIN_LAT + i * (MAX_LAT - MIN_LAT) / 4;
-          const lon = MIN_LON + i * (MAX_LON - MIN_LON) / 4;
-          return (
-            <g key={i}>
-              <line x1={PAD} x2={W-PAD} y1={toY(lat)} y2={toY(lat)} stroke="#D4CFC5" strokeWidth="0.6" strokeDasharray="3 6" />
-              <line x1={toX(lon)} x2={toX(lon)} y1={PAD} y2={H-PAD} stroke="#D4CFC5" strokeWidth="0.6" strokeDasharray="3 6" />
-              <text x={4} y={toY(lat)+3} fontSize={7} fill="#9ca3af" fontFamily="monospace">{lat.toFixed(2)}°</text>
-              <text x={toX(lon)-10} y={H-4} fontSize={7} fill="#9ca3af" fontFamily="monospace">{lon.toFixed(2)}°</text>
-            </g>
-          );
-        })}
+        {/* Route corridors */}
+        {ROUTE_CORRIDORS.map((r, i) => (
+          <Polyline key={i} positions={r.pts} color={r.color} weight={2.5} opacity={0.5} dashArray="6 5" />
+        ))}
 
-        {/* ── Delivery route corridors ── */}
-        {ROUTE_CORRIDORS.map(route => {
-          const pts = route.pts.map(([lat, lon]) => `${toX(lon)},${toY(lat)}`).join(' ');
-          return (
-            <g key={route.name}>
-              {/* Road shadow */}
-              <polyline points={pts} fill="none" stroke="#ffffff" strokeWidth="4" strokeOpacity="0.5"
-                strokeLinecap="round" strokeLinejoin="round" />
-              {/* Road itself */}
-              <polyline points={pts} fill="none" stroke={route.color} strokeWidth="2"
-                strokeOpacity="0.45" strokeDasharray="6 4"
-                strokeLinecap="round" strokeLinejoin="round" />
-            </g>
-          );
-        })}
-
-        {/* ── Landmark dots and labels ── */}
-        {LANDMARKS.map(([lat, lon, label, [dx, dy], type]) => {
-          const lx = toX(lon), ly = toY(lat);
-          const s = LANDMARK_COLORS[type] || LANDMARK_COLORS.district;
-          return (
-            <g key={label}>
-              <circle cx={lx} cy={ly} r={s.r} fill={s.dot} opacity="0.7" />
-              <text x={lx + dx} y={ly + dy} fontSize={type === 'city' ? 10 : 8}
-                fontWeight={s.fw} fill={s.text} fontFamily="system-ui"
-                style={{ pointerEvents:'none' }}>
-                {label}
-              </text>
-            </g>
-          );
-        })}
-
-        {/* ── Vehicle trails ── */}
+        {/* Vehicle trails */}
         {vehicles.map(v => {
-          const trail = posHistory.current[v.asset_id] || [];
+          const trail = (posHistory.current[v.asset_id] || []).map(p => [p.lat, p.lon]);
           if (trail.length < 2) return null;
-          const pts = trail.map(p => `${toX(p.lon)},${toY(p.lat)}`).join(' ');
-          return <polyline key={`trail-${v.asset_id}`} points={pts}
-            fill="none" stroke={speedColor(v.veh_spd || 0)} strokeWidth="2" strokeOpacity="0.35"
-            strokeLinecap="round" strokeLinejoin="round" />;
+          return <Polyline key={`trail-${v.asset_id}`} positions={trail}
+            color={speedColor(v.veh_spd || 0)} weight={2} opacity={0.4} />;
         })}
 
-        {/* ── Vehicle dots ── */}
+        {/* Vehicle markers */}
         {vehicles.map(v => {
           if (!v.latitude || !v.longitude) return null;
-          const vx = toX(v.longitude), vy = toY(v.latitude);
           const spd = v.veh_spd || 0;
           const col = speedColor(spd);
           const isSel = v.asset_id === selectedId;
-          const r = isSel ? 10 : 7;
-          const isOff = spd < 1;
           return (
-            <g key={v.asset_id}
-              onClick={() => onSelect(v.asset_id === selectedId ? null : v.asset_id)}
-              style={{ cursor:'pointer' }}>
-              {/* Overspeed pulse */}
-              {spd > 80 && (
-                <circle cx={vx} cy={vy} r={r+4} fill="none" stroke="#ef4444" strokeWidth="1.5">
-                  <animate attributeName="r" values={`${r+3};${r+10};${r+3}`} dur="1.5s" repeatCount="indefinite" />
-                  <animate attributeName="stroke-opacity" values="0.7;0;0.7" dur="1.5s" repeatCount="indefinite" />
-                </circle>
-              )}
-              {/* Idle dimming */}
-              {isOff && <circle cx={vx} cy={vy} r={r+2} fill="#94a3b8" opacity="0.15" />}
-              {/* Selection ring */}
-              {isSel && <circle cx={vx} cy={vy} r={r+5} fill="none" stroke="#1d4ed8" strokeWidth="2.5" />}
-              {/* White halo for readability */}
-              <circle cx={vx} cy={vy} r={r+1.5} fill="white" opacity="0.7" />
-              {/* Vehicle body */}
-              <circle cx={vx} cy={vy} r={r} fill={col} stroke="#ffffff" strokeWidth={isSel?2:1.5} />
-              {/* Direction arrow (only when moving) */}
-              {spd > 2 && <polygon points={`${vx},${vy-r-4} ${vx-3},${vy-r+1} ${vx+3},${vy-r+1}`} fill={col} />}
-              {/* ID label */}
-              <text x={vx + r + 4} y={vy + 4}
-                fontSize={isSel ? 10 : 8} fontWeight={isSel ? 700 : 500}
-                fill={isSel ? '#1d4ed8' : '#374151'} fontFamily="system-ui"
-                style={{ pointerEvents:'none' }}>
-                {v.asset_id}
-              </text>
-              {/* Speed tooltip on selected */}
-              {isSel && spd > 0 && (
-                <text x={vx + r + 4} y={vy + 16} fontSize={8} fill="#64748b" fontFamily="monospace">
-                  {spd.toFixed(0)} km/h
-                </text>
-              )}
-            </g>
+            <CircleMarker
+              key={v.asset_id}
+              center={[v.latitude, v.longitude]}
+              radius={isSel ? 10 : 7}
+              pathOptions={{
+                color: '#ffffff', weight: isSel ? 2.5 : 1.5,
+                fillColor: col, fillOpacity: 0.95,
+              }}
+              eventHandlers={{ click: () => onSelect(v.asset_id === selectedId ? null : v.asset_id) }}
+            >
+              <Popup>
+                <div style={{ fontSize:12, minWidth:130 }}>
+                  <strong>{v.asset_id}</strong><br/>
+                  Speed: <strong>{spd.toFixed(0)} km/h</strong><br/>
+                  {v.driver_id && <>Driver: {v.driver_id}<br/></>}
+                  {v.veh_status && <>Status: {v.veh_status}</>}
+                </div>
+              </Popup>
+            </CircleMarker>
           );
         })}
+      </MapContainer>
 
-        {/* ── Speed legend (bottom-left) ── */}
-        <rect x={PAD} y={H-PAD-90} width={86} height={86} rx={6}
-          fill="white" fillOpacity="0.88" stroke="#e2e8f0" strokeWidth="1" />
-        <text x={PAD+6} y={H-PAD-78} fontSize={8} fontWeight={700} fill="#374151" fontFamily="system-ui">
-          SPEED
-        </text>
-        {[
-          { col:'#94a3b8', label:'Idle (engine on)' },
-          { col:'#22c55e', label:'Urban  0–40 km/h' },
-          { col:'#f59e0b', label:'Arterial  40–60' },
-          { col:'#3b82f6', label:'Highway  60–80' },
-          { col:'#ef4444', label:'Overspeed  >80 ⚠' },
-        ].map((item, i) => (
-          <g key={item.col}>
-            <circle cx={PAD+10} cy={H-PAD-63 + i*14} r={4} fill={item.col} />
-            <text x={PAD+18} y={H-PAD-59 + i*14} fontSize={8} fill="#374151" fontFamily="system-ui">
-              {item.label}
-            </text>
-          </g>
-        ))}
-
-        {/* ── Route corridor legend (top-left) ── */}
-        <rect x={PAD} y={PAD} width={130} height={78} rx={6}
-          fill="white" fillOpacity="0.88" stroke="#e2e8f0" strokeWidth="1" />
-        <text x={PAD+6} y={PAD+13} fontSize={8} fontWeight={700} fill="#374151" fontFamily="system-ui">
-          DELIVERY CORRIDORS
-        </text>
-        {ROUTE_CORRIDORS.map((r, i) => (
-          <g key={r.name}>
-            <line x1={PAD+6} y1={PAD+22+i*11} x2={PAD+18} y2={PAD+22+i*11}
-              stroke={r.color} strokeWidth="2" strokeDasharray="4 2" />
-            <text x={PAD+22} y={PAD+26+i*11} fontSize={7.5} fill="#374151" fontFamily="system-ui">
-              {r.name}
-            </text>
-          </g>
-        ))}
-
-        {/* ── Scale bar ── */}
-        <g transform={`translate(${W/2 - 40}, ${H - 16})`}>
-          <line x1={0} y1={0} x2={scalePx} y2={0} stroke="#6b7280" strokeWidth="2" />
-          <line x1={0} y1={-4} x2={0} y2={4} stroke="#6b7280" strokeWidth="1.5" />
-          <line x1={scalePx} y1={-4} x2={scalePx} y2={4} stroke="#6b7280" strokeWidth="1.5" />
-          <text x={scalePx/2} y={-5} textAnchor="middle" fontSize={8} fill="#6b7280" fontFamily="system-ui">
-            ~{scaleKm} km
-          </text>
-        </g>
-
-        {/* ── North arrow ── */}
-        <g transform={`translate(${W - PAD - 16}, ${PAD + 12})`}>
-          <polygon points="0,-10 -5,4 0,1 5,4" fill="#374151" />
-          <text x={0} y={17} textAnchor="middle" fontSize={9} fontWeight={700} fill="#374151" fontFamily="system-ui">N</text>
-        </g>
-
-        {/* ══ INDIA CONTEXT INSET (bottom-right) ══════════════════ */}
-        {/* Shows which state + which part of India */}
-        <rect x={IX-4} y={IY-4} width={IW+8} height={IH+8} rx={8}
-          fill="white" fillOpacity="0.93" stroke="#cbd5e1" strokeWidth="1.5" />
-        <text x={IX + IW/2} y={IY-8} textAnchor="middle" fontSize={8} fontWeight={700}
-          fill="#374151" fontFamily="system-ui">INDIA</text>
-
-        {/* India outline */}
-        <polygon points={INDIA_PTS} fill="#e8f5e9" stroke="#9ca3af" strokeWidth="0.8" />
-
-        {/* Telangana state highlighted */}
-        <polygon points={TELANGANA_PTS} fill="#fbbf24" fillOpacity="0.6" stroke="#d97706" strokeWidth="0.8" />
-
-        {/* Hyderabad star marker */}
-        <text x={IX + hydIX} y={IY + hydIY + 1} textAnchor="middle" fontSize={9} fill="#dc2626">★</text>
-        <text x={IX + hydIX + 6} y={IY + hydIY - 3} fontSize={6.5} fill="#991b1b" fontWeight={700} fontFamily="system-ui">
-          Hyd
-        </text>
-
-        {/* TS state label */}
-        <text x={IX + toIX(79.1)} y={IY + toIY(18.0)} textAnchor="middle"
-          fontSize={7} fontWeight={600} fill="#92400e" fontFamily="system-ui">TS</text>
-
-        {/* Inset label */}
-        <text x={IX + IW/2} y={IY + IH + 10} textAnchor="middle"
-          fontSize={7} fill="#64748b" fontFamily="system-ui">Telangana State</text>
-      </svg>
-
-      {/* Map footer bar */}
+      {/* Footer */}
       <div style={{ display:'flex', justifyContent:'space-between', alignItems:'center',
-        marginTop:6, fontSize:10, color:'#64748b' }}>
+        padding:'5px 10px', fontSize:10, color:'#64748b', background:'#f8fafc',
+        borderTop:'1px solid #e2e8f0' }}>
         <span>
-          🚐 <strong>{vehicles.filter(v => v.latitude).length}</strong> vehicles with GPS ·{' '}
+          🚐 <strong>{vehicles.filter(v => v.latitude).length}</strong> with GPS ·{' '}
           <strong style={{ color:'#22c55e' }}>{vehicles.filter(v => (v.veh_spd||0) > 1).length}</strong> moving ·{' '}
           <strong style={{ color:'#94a3b8' }}>{vehicles.filter(v => (v.veh_spd||0) < 1).length}</strong> idle
         </span>
-        <span style={{ color:'#94a3b8' }}>Greater Hyderabad Metropolitan Area · Telangana, India</span>
+        <span>Greater Hyderabad · Telangana, India · © OpenStreetMap</span>
       </div>
     </div>
   );

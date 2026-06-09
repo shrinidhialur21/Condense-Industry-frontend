@@ -54,43 +54,54 @@ async function pollPipeline(industry) {
   }
 
   const t0 = Date.now();
+
+  // Step 1: health check — determines online/offline
+  let health;
   try {
-    const [health, stats] = await Promise.all([
-      safeFetch(`${industry.apiUrl}/health`,     FETCH_TIMEOUT_MS),
-      safeFetch(`${industry.apiUrl}/api/stats`,  FETCH_TIMEOUT_MS),
-    ]);
-
-    const responseTime  = Date.now() - t0;
-    const lastUpdated   = stats.last_updated ? new Date(stats.last_updated) : null;
-    const freshnessS    = lastUpdated ? (Date.now() - lastUpdated.getTime()) / 1000 : null;
-    const isLive        = freshnessS != null && freshnessS < STALE_THRESHOLD_S;
-
-    return {
-      id            : industry.id,
-      status        : isLive ? 'live' : 'stale',
-      responseTime,
-      // From /health
-      ws_clients    : health.ws_clients    ?? 0,
-      uptime_s      : health.uptime_s      ?? null,
-      app_status    : health.status        ?? 'unknown',
-      // From /api/stats
-      total_messages: stats.total_messages ?? 0,
-      total_alerts  : stats.total_alerts   ?? 0,
-      assets_online : typeof stats.assets_online === 'number'
-                        ? stats.assets_online
-                        : (stats.assets_online?.size ?? Object.keys(stats.assets_online ?? {}).length ?? 0),
-      last_updated  : stats.last_updated   ?? null,
-      freshness_s   : freshnessS,
-      error         : null,
-    };
+    health = await safeFetch(`${industry.apiUrl}/health`, FETCH_TIMEOUT_MS);
   } catch (err) {
     return {
       id          : industry.id,
       status      : 'offline',
       responseTime: Date.now() - t0,
-      error       : err.message || 'Request failed',
+      error       : err.message || 'Health check failed',
     };
   }
+
+  const responseTime = Date.now() - t0;
+
+  // Step 2: stats — optional, failures don't mark pipeline as offline
+  let stats = {};
+  try {
+    stats = await safeFetch(`${industry.apiUrl}/api/stats`, FETCH_TIMEOUT_MS);
+  } catch (_) {
+    // Stats unavailable — pipeline is still considered online
+  }
+
+  const lastUpdated = stats.last_updated ? new Date(stats.last_updated) : null;
+  const freshnessS  = lastUpdated ? (Date.now() - lastUpdated.getTime()) / 1000 : null;
+
+  // Live = health OK AND data is fresh. Stale = health OK but data is old/absent.
+  const status = (freshnessS != null && freshnessS < STALE_THRESHOLD_S) ? 'live' : 'stale';
+
+  return {
+    id            : industry.id,
+    status,
+    responseTime,
+    // From /health
+    ws_clients    : health.ws_clients ?? 0,
+    uptime_s      : health.uptime_s   ?? null,
+    app_status    : health.status     ?? 'unknown',
+    // From /api/stats (may be empty if stats fetch failed)
+    total_messages: stats.total_messages ?? 0,
+    total_alerts  : stats.total_alerts   ?? 0,
+    assets_online : typeof stats.assets_online === 'number'
+                      ? stats.assets_online
+                      : (stats.assets_online?.size ?? Object.keys(stats.assets_online ?? {}).length ?? 0),
+    last_updated  : stats.last_updated ?? null,
+    freshness_s   : freshnessS,
+    error         : null,
+  };
 }
 
 // ── Main hook ─────────────────────────────────────────────────────────────────
