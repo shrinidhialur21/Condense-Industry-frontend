@@ -138,7 +138,7 @@ function MachineDetail({ asset }) {
         </div>
         <div style={{ flex:1, minWidth:80, background: k.predicted_failure_in_h != null && k.predicted_failure_in_h < 4 ? '#fff7ed' : '#f8fafc',
           border:`1px solid ${k.predicted_failure_in_h != null && k.predicted_failure_in_h < 4 ? '#f97316' : '#e2e8f0'}`, borderRadius:8, padding:'8px 12px' }}>
-          <div style={{ fontSize:9, color:'#64748b', textTransform:'uppercase', letterSpacing:'0.06em' }}>Next Failure In</div>
+          <div style={{ fontSize:9, color:'#64748b', textTransform:'uppercase', letterSpacing:'0.06em' }}>Potential failure by</div>
           <div style={{ fontSize:15, fontWeight:700, color: k.predicted_failure_in_h < 4 ? '#ea580c' : '#1e293b', fontFamily:'monospace', marginTop:2 }}>
             {k.predicted_failure_in_h != null ? `${k.predicted_failure_in_h.toFixed(1)} h` : '—'}
           </div>
