@@ -103,6 +103,43 @@ export function HealthGauge({ score = 0, size = 80 }) {
   );
 }
 
+// ── Info tooltip (hover "i" icon with explanatory text) ────────
+// Usage: <span style={{ display:'flex', alignItems:'center', gap:4 }}>Label <InfoTooltip text="..." /></span>
+export function InfoTooltip({ text }) {
+  const [show, setShow] = useState(false);
+  return (
+    <span
+      style={{ position:'relative', display:'inline-flex', alignItems:'center' }}
+      onMouseEnter={() => setShow(true)}
+      onMouseLeave={() => setShow(false)}
+    >
+      <span style={{
+        display:'inline-flex', alignItems:'center', justifyContent:'center',
+        width:13, height:13, borderRadius:'50%', cursor:'help',
+        background:'#cbd5e1', color:'#ffffff',
+        fontSize:9, fontWeight:700, fontStyle:'normal', fontFamily:'system-ui,sans-serif',
+        lineHeight:1, flexShrink:0,
+      }}>i</span>
+      {show && (
+        <span style={{
+          position:'absolute', bottom:'140%', left:'50%', transform:'translateX(-50%)',
+          background:'#1e293b', color:'#f1f5f9', fontSize:11, fontWeight:400,
+          lineHeight:1.4, padding:'8px 10px', borderRadius:6, width:220,
+          textTransform:'none', letterSpacing:'normal', zIndex:50,
+          boxShadow:'0 4px 12px rgba(0,0,0,0.25)', textAlign:'left',
+        }}>
+          {text}
+          <span style={{
+            position:'absolute', top:'100%', left:'50%', transform:'translateX(-50%)',
+            width:0, height:0, borderLeft:'5px solid transparent',
+            borderRight:'5px solid transparent', borderTop:'5px solid #1e293b',
+          }} />
+        </span>
+      )}
+    </span>
+  );
+}
+
 // ── Alert row ─────────────────────────────────────────────────
 export function AlertRow({ alert }) {
   const sevColor = {

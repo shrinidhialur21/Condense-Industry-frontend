@@ -11,7 +11,7 @@ import { INDUSTRIES }    from '../../config/industries.js';
 import { useWindowSize } from '../../hooks/useWindowSize.js';
 import {
   ConnectionStatus, KPICard, AlertFeed, StatusBadge, HealthGauge,
-  DashboardHeader, RefreshButton,
+  DashboardHeader, RefreshButton, InfoTooltip,
 } from '../../components/shared.jsx';
 
 const MAX_HISTORY = 40;
@@ -21,7 +21,7 @@ const ASSET_META = {
   conveyor:     { icon: '🏗️', label: 'Conveyor' },
   robot:        { icon: '🤖', label: 'Robot Arm' },
   sensor:       { icon: '📡', label: 'IIoT Sensor' },
-  cement_kiln:  { icon: '🔥', label: 'Cement Kiln' },
+  cement_kiln:  { icon: '🏭', label: 'Cement Kiln' },
   cement_mill:  { icon: '🪨', label: 'Cement Mill' },
 };
 
@@ -187,7 +187,10 @@ function MachineDetail({ asset }) {
         </div>
         <div style={{ flex:1, minWidth:80, background: k.predicted_failure_in_h != null && k.predicted_failure_in_h < 4 ? '#fff7ed' : '#f8fafc',
           border:`1px solid ${k.predicted_failure_in_h != null && k.predicted_failure_in_h < 4 ? '#f97316' : '#e2e8f0'}`, borderRadius:8, padding:'8px 12px' }}>
-          <div style={{ fontSize:9, color:'#64748b', textTransform:'uppercase', letterSpacing:'0.06em' }}>Potential failure by</div>
+          <div style={{ fontSize:9, color:'#64748b', textTransform:'uppercase', letterSpacing:'0.06em', display:'flex', alignItems:'center', gap:4 }}>
+            Est. Time To Next Failure
+            <InfoTooltip text="Estimate, not a scheduled date. Based on this machine's historical MTBF (average run-time between past failures) minus the time it has been running since its last repair. A low value means it is statistically 'due' for a failure soon, not that a failure is confirmed." />
+          </div>
           <div style={{ fontSize:15, fontWeight:700, color: k.predicted_failure_in_h < 4 ? '#ea580c' : '#1e293b', fontFamily:'monospace', marginTop:2 }}>
             {k.predicted_failure_in_h != null ? `${k.predicted_failure_in_h.toFixed(1)} h` : '—'}
           </div>
@@ -379,7 +382,12 @@ export default function ManufacturingDashboard() {
   const avgOEE      = machines.length ? (machines.reduce((s, a) => s + (a.kpis?.oee_pct ?? 0), 0) / machines.length).toFixed(1) : 0;
   const running     = assetList.filter(a => a.status === 'running').length;
   const faulted     = assetList.filter(a => a.status === 'fault').length;
-  const critAlerts  = alerts.filter(a => a.severity === 'critical').length;
+
+  // Only show alerts for assets belonging to the currently selected vertical
+  // (e.g. don't show CNC machine alerts while viewing the Cement tab).
+  const assetIdsInVertical = new Set(assetList.map(a => a.asset_id));
+  const verticalAlerts = alerts.filter(a => assetIdsInVertical.has(a.asset_id || a.source_asset || a.assetId));
+  const critAlerts  = verticalAlerts.filter(a => a.severity === 'critical').length;
 
   // MTBF/MTTR fleet averages
   const mttfVals = assetList.filter(m => m.kpis?.mtbf_h != null).map(m => m.kpis.mtbf_h);
@@ -578,7 +586,7 @@ export default function ManufacturingDashboard() {
         </div>
       </div>
 
-      <AlertFeed alerts={alerts} maxHeight={240} />
+      <AlertFeed alerts={verticalAlerts} maxHeight={240} />
     </div>
   );
 }
