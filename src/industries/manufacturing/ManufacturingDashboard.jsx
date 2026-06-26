@@ -17,11 +17,60 @@ import {
 const MAX_HISTORY = 40;
 
 const ASSET_META = {
-  machine:   { icon: '⚙️',  label: 'CNC Machine' },
-  conveyor:  { icon: '🏗️', label: 'Conveyor' },
-  robot:     { icon: '🤖', label: 'Robot Arm' },
-  sensor:    { icon: '📡', label: 'IIoT Sensor' },
+  machine:      { icon: '⚙️',  label: 'CNC Machine' },
+  conveyor:     { icon: '🏗️', label: 'Conveyor' },
+  robot:        { icon: '🤖', label: 'Robot Arm' },
+  sensor:       { icon: '📡', label: 'IIoT Sensor' },
+  cement_kiln:  { icon: '🔥', label: 'Cement Kiln' },
+  cement_mill:  { icon: '🪨', label: 'Cement Mill' },
 };
+
+// Manufacturing "field" verticals — same pipeline, different asset_types & KPIs.
+// New verticals (e.g. cigar manufacturing) just need an entry here plus
+// matching asset_type generators in the simulator/processor.
+const MFG_VERTICALS = {
+  discrete: {
+    label: 'Discrete Manufacturing',
+    icon:  '⚙️',
+    description: 'CNC machines, conveyors, robot arms, shop-floor sensors',
+    types: ['cnc_machine', 'conveyor', 'robot_arm', 'env_sensor', 'quality_station'],
+  },
+  cement: {
+    label: 'Cement Manufacturing',
+    icon:  '🏗️',
+    description: 'Kiln pyroprocessing & finish-mill grinding circuits',
+    types: ['cement_kiln', 'cement_mill'],
+  },
+};
+
+function VerticalSelector({ value, onChange, counts }) {
+  return (
+    <div style={{ display:'flex', gap:8, marginBottom:20, flexWrap:'wrap' }}>
+      {Object.entries(MFG_VERTICALS).map(([key, v]) => {
+        const active = key === value;
+        const count = counts[key] || 0;
+        return (
+          <button key={key} onClick={() => onChange(key)} style={{
+            display:'flex', alignItems:'center', gap:8,
+            padding:'10px 16px', borderRadius:10, cursor:'pointer',
+            border: `1px solid ${active ? '#8b5cf6' : '#e2e8f0'}`,
+            background: active ? 'rgba(139,92,246,0.08)' : '#ffffff',
+            color: active ? '#6d28d9' : '#475569',
+            fontFamily:'system-ui,sans-serif', fontSize:13, fontWeight:600,
+          }}>
+            <span style={{ fontSize:16 }}>{v.icon}</span>
+            <span>{v.label}</span>
+            <span style={{
+              fontSize:11, fontWeight:700, color: active ? '#6d28d9' : '#94a3b8',
+              background: active ? 'rgba(139,92,246,0.15)' : '#f1f5f9',
+              borderRadius:999, padding:'1px 7px',
+            }}>{count}</span>
+          </button>
+        );
+      })}
+    </div>
+  );
+}
 
 // OEE gauge — colored arc for the three components
 function OEEDisplay({ oee = 0, availability = 0, performance = 0, quality = 0 }) {
@@ -172,6 +221,97 @@ function MachineDetail({ asset }) {
   );
 }
 
+function CementDetail({ asset }) {
+  const k = asset.kpis || {};
+
+  if (asset.asset_type === 'cement_kiln') {
+    const bandColor = k.burning_zone_in_band ? '#16a34a' : '#dc2626';
+    return (
+      <div>
+        <div style={{ display:'flex', gap:8, marginBottom:12, flexWrap:'wrap' }}>
+          {[
+            { label:'SHC', val:k.specific_heat_consumption_kcal_kg, unit:'kcal/kg', color:'#7c3aed' },
+            { label:'TSR', val:k.thermal_substitution_rate_pct, unit:'%', color:'#16a34a' },
+            { label:'Clinker Quality', val:k.clinker_quality_index, unit:'/100', color: k.clinker_quality_index < 70 ? '#dc2626' : '#16a34a' },
+          ].map(item => (
+            <div key={item.label} style={{ flex:1, minWidth:100, background:'#f8fafc', border:'1px solid #e2e8f0', borderRadius:8, padding:'8px 10px', textAlign:'center' }}>
+              <div style={{ fontSize:9, color:'#64748b', textTransform:'uppercase', letterSpacing:'0.06em' }}>{item.label}</div>
+              <div style={{ fontSize:20, fontWeight:800, color:item.color, fontFamily:'monospace', marginTop:2 }}>
+                {item.val != null ? Number(item.val).toFixed(1) : '—'}
+                {item.unit && <span style={{ fontSize:10, color:'#94a3b8', marginLeft:2 }}>{item.unit}</span>}
+              </div>
+            </div>
+          ))}
+        </div>
+
+        <div style={{ display:'flex', gap:8, marginBottom:12, flexWrap:'wrap' }}>
+          <div style={{ flex:1, minWidth:120, background: k.burning_zone_in_band ? '#f8fafc' : '#fee2e2',
+            border:`1px solid ${bandColor}30`, borderRadius:8, padding:'8px 12px' }}>
+            <div style={{ fontSize:9, color:'#64748b', textTransform:'uppercase', letterSpacing:'0.06em' }}>Burning Zone</div>
+            <div style={{ fontSize:15, fontWeight:700, color:bandColor, fontFamily:'monospace', marginTop:2 }}>
+              {asset.burning_zone_temp_c != null ? `${asset.burning_zone_temp_c.toFixed(0)} °C` : '—'}
+              <span style={{ fontSize:10, marginLeft:6, color:'#64748b' }}>
+                ({k.burning_zone_in_band ? 'in band' : 'out of band'}, {k.burning_zone_trend})
+              </span>
+            </div>
+          </div>
+        </div>
+
+        <div style={{ display:'grid', gridTemplateColumns:'repeat(auto-fill, minmax(130px,1fr))', gap:8 }}>
+          <FieldCell label="Kiln Feed"       val={asset.kiln_feed_tph}            unit="t/h" />
+          <FieldCell label="Clinker Output"  val={asset.clinker_production_tph}   unit="t/h" />
+          <FieldCell label="Free Lime"       val={asset.free_lime_pct}            unit="%" highlight={asset.free_lime_pct > 2 ? 'danger' : 'good'} />
+          <FieldCell label="Coal Feed"       val={asset.coal_feed_tph}            unit="t/h" />
+          <FieldCell label="Alt Fuel Feed"   val={asset.alt_fuel_feed_tph}        unit="t/h" />
+          <FieldCell label="Kiln Speed"      val={asset.kiln_speed_rpm}           unit="rpm" />
+          <FieldCell label="Kiln Torque"     val={asset.kiln_torque_pct}          unit="%" />
+          <FieldCell label="Refractory Wear" val={asset.refractory_wear_pct}      unit="%" highlight={asset.refractory_wear_pct > 85 ? 'danger' : null} />
+          <FieldCell label="NOx"             val={asset.nox_mg_nm3}               unit="mg/Nm³" highlight={asset.nox_mg_nm3 > 800 ? 'danger' : null} />
+          <FieldCell label="SO2"             val={asset.so2_mg_nm3}               unit="mg/Nm³" />
+          <FieldCell label="Dust"            val={asset.dust_mg_nm3}              unit="mg/Nm³" />
+          <FieldCell label="MTBF"            val={k.mtbf_h}                       unit="h" />
+          <FieldCell label="MTTR"            val={k.mttr_h}                       unit="h" />
+        </div>
+      </div>
+    );
+  }
+
+  // cement_mill
+  return (
+    <div>
+      <div style={{ display:'flex', gap:8, marginBottom:12, flexWrap:'wrap' }}>
+        {[
+          { label:'Specific Power', val:k.specific_power_consumption_kwh_t, unit:'kWh/t', color:'#7c3aed' },
+          { label:'Blaine Fineness', val:k.blaine_fineness_cm2g, unit:'cm²/g', color:'#0284c7' },
+          { label:'Circulating Load', val:k.circulating_load_pct, unit:'%', color: k.grinding_circuit_status === 'optimal' ? '#16a34a' : '#d97706' },
+        ].map(item => (
+          <div key={item.label} style={{ flex:1, minWidth:110, background:'#f8fafc', border:'1px solid #e2e8f0', borderRadius:8, padding:'8px 10px', textAlign:'center' }}>
+            <div style={{ fontSize:9, color:'#64748b', textTransform:'uppercase', letterSpacing:'0.06em' }}>{item.label}</div>
+            <div style={{ fontSize:20, fontWeight:800, color:item.color, fontFamily:'monospace', marginTop:2 }}>
+              {item.val != null ? Number(item.val).toFixed(1) : '—'}
+              {item.unit && <span style={{ fontSize:10, color:'#94a3b8', marginLeft:2 }}>{item.unit}</span>}
+            </div>
+          </div>
+        ))}
+      </div>
+
+      <div style={{ display:'grid', gridTemplateColumns:'repeat(auto-fill, minmax(130px,1fr))', gap:8 }}>
+        <FieldCell label="Mill Feed"        val={asset.mill_feed_tph}        unit="t/h" />
+        <FieldCell label="Production"       val={asset.production_tph}       unit="t/h" />
+        <FieldCell label="Residue 45µ"      val={asset.residue_45micron_pct} unit="%" />
+        <FieldCell label="Grinding Circuit" val={k.grinding_circuit_status}  unit="" />
+        <FieldCell label="Bearing Vibration" val={asset.bearing_vibration_mms} unit="mm/s" highlight={asset.bearing_vibration_mms > 7 ? 'danger' : null} />
+        <FieldCell label="Bearing Temp"     val={asset.bearing_temp_c}       unit="°C" />
+        <FieldCell label="Gypsum"           val={asset.gypsum_pct}           unit="%" />
+        <FieldCell label="Fly Ash"          val={asset.fly_ash_pct}          unit="%" />
+        <FieldCell label="Limestone"        val={asset.limestone_pct}        unit="%" />
+        <FieldCell label="MTBF"             val={k.mtbf_h}                   unit="h" />
+        <FieldCell label="MTTR"             val={k.mttr_h}                   unit="h" />
+      </div>
+    </div>
+  );
+}
+
 export default function ManufacturingDashboard() {
   const industry = INDUSTRIES.manufacturing;
   const { status, assets, alerts, refresh } = useCondenseWS(industry.apiUrl);
@@ -179,11 +319,43 @@ export default function ManufacturingDashboard() {
 
   const [selectedAsset, setSelectedAsset] = useState(null);
   const [history, setHistory]             = useState([]);
+  const [vertical, setVertical]           = useState(() => localStorage.getItem('mfg_vertical') || 'discrete');
   const prevRef = useRef({});
 
-  const assetList   = Object.values(assets);
-  const machines    = assetList.filter(a => a.kpis?.oee_pct != null);
+  useEffect(() => { localStorage.setItem('mfg_vertical', vertical); }, [vertical]);
+
+  const fullAssetList = Object.values(assets);
+  const verticalCounts = Object.fromEntries(
+    Object.entries(MFG_VERTICALS).map(([key, v]) => [key, fullAssetList.filter(a => v.types.includes(a.asset_type)).length])
+  );
+
+  // Auto-switch to whichever vertical actually has live data on first load
+  useEffect(() => {
+    if (fullAssetList.length === 0) return;
+    const stored = localStorage.getItem('mfg_vertical');
+    if (stored) return; // respect explicit user choice
+    const hasCurrent = MFG_VERTICALS[vertical].types.some(t => fullAssetList.some(a => a.asset_type === t));
+    if (hasCurrent) return;
+    const fallback = Object.keys(MFG_VERTICALS).find(key => MFG_VERTICALS[key].types.some(t => fullAssetList.some(a => a.asset_type === t)));
+    if (fallback) setVertical(fallback);
+  }, [fullAssetList.length]);
+
+  const assetList   = fullAssetList.filter(a => MFG_VERTICALS[vertical].types.includes(a.asset_type));
+  const isCement    = vertical === 'cement';
+  const machines    = assetList.filter(a => a.kpis?.oee_pct != null); // discrete only
   const selectedObj = selectedAsset ? assets[selectedAsset] : null;
+
+  // Cement fleet aggregates
+  const kilns = assetList.filter(a => a.asset_type === 'cement_kiln');
+  const mills = assetList.filter(a => a.asset_type === 'cement_mill');
+  const totalClinkerTph = kilns.reduce((s, a) => s + (a.clinker_production_tph ?? 0), 0);
+  const totalCementTph  = mills.reduce((s, a) => s + (a.production_tph ?? 0), 0);
+  const shcVals = kilns.filter(a => a.kpis?.specific_heat_consumption_kcal_kg != null).map(a => a.kpis.specific_heat_consumption_kcal_kg);
+  const tsrVals = kilns.filter(a => a.kpis?.thermal_substitution_rate_pct != null).map(a => a.kpis.thermal_substitution_rate_pct);
+  const spcVals = mills.filter(a => a.kpis?.specific_power_consumption_kwh_t != null).map(a => a.kpis.specific_power_consumption_kwh_t);
+  const avgSHC = shcVals.length ? (shcVals.reduce((s,v)=>s+v,0)/shcVals.length).toFixed(0) : null;
+  const avgTSR = tsrVals.length ? (tsrVals.reduce((s,v)=>s+v,0)/tsrVals.length).toFixed(1) : null;
+  const avgSPC = spcVals.length ? (spcVals.reduce((s,v)=>s+v,0)/spcVals.length).toFixed(1) : null;
 
   useEffect(() => {
     if (assetList.length === 0) return;
@@ -191,11 +363,18 @@ export default function ManufacturingDashboard() {
     if (!hasChanged) return;
     prevRef.current = assets;
 
-    const avgOEE  = machines.length ? (machines.reduce((s, a) => s + (a.kpis?.oee_pct ?? 0), 0) / machines.length).toFixed(1) : 0;
-    const avgVib  = assetList.length ? (assetList.reduce((s, a) => s + (a.vibration_g ?? 0), 0) / assetList.length).toFixed(2) : 0;
-    const time    = new Date().toLocaleTimeString('en', { hour12:false, hour:'2-digit', minute:'2-digit', second:'2-digit' });
-    setHistory(prev => [...prev, { time, avgOEE: Number(avgOEE), avgVibration: Number(avgVib) }].slice(-MAX_HISTORY));
-  }, [assets]);
+    if (isCement) {
+      const avgSHCnow = shcVals.length ? Number((shcVals.reduce((s,v)=>s+v,0)/shcVals.length).toFixed(0)) : 0;
+      const totalProdNow = Number((totalClinkerTph + totalCementTph).toFixed(1));
+      const time = new Date().toLocaleTimeString('en', { hour12:false, hour:'2-digit', minute:'2-digit', second:'2-digit' });
+      setHistory(prev => [...prev, { time, avgOEE: avgSHCnow, avgVibration: totalProdNow }].slice(-MAX_HISTORY));
+    } else {
+      const avgOEEnow = machines.length ? (machines.reduce((s, a) => s + (a.kpis?.oee_pct ?? 0), 0) / machines.length).toFixed(1) : 0;
+      const avgVib    = assetList.length ? (assetList.reduce((s, a) => s + (a.vibration_g ?? 0), 0) / assetList.length).toFixed(2) : 0;
+      const time      = new Date().toLocaleTimeString('en', { hour12:false, hour:'2-digit', minute:'2-digit', second:'2-digit' });
+      setHistory(prev => [...prev, { time, avgOEE: Number(avgOEEnow), avgVibration: Number(avgVib) }].slice(-MAX_HISTORY));
+    }
+  }, [assets, vertical]);
 
   const avgOEE      = machines.length ? (machines.reduce((s, a) => s + (a.kpis?.oee_pct ?? 0), 0) / machines.length).toFixed(1) : 0;
   const running     = assetList.filter(a => a.status === 'running').length;
@@ -203,19 +382,24 @@ export default function ManufacturingDashboard() {
   const critAlerts  = alerts.filter(a => a.severity === 'critical').length;
 
   // MTBF/MTTR fleet averages
-  const mttfVals = machines.filter(m => m.kpis?.mtbf_h != null).map(m => m.kpis.mtbf_h);
-  const mttrVals = machines.filter(m => m.kpis?.mttr_h != null).map(m => m.kpis.mttr_h);
+  const mttfVals = assetList.filter(m => m.kpis?.mtbf_h != null).map(m => m.kpis.mtbf_h);
+  const mttrVals = assetList.filter(m => m.kpis?.mttr_h != null).map(m => m.kpis.mttr_h);
   const avgMTBF  = mttfVals.length ? (mttfVals.reduce((s, v) => s + v, 0) / mttfVals.length).toFixed(1) : null;
   const avgMTTR  = mttrVals.length ? (mttrVals.reduce((s, v) => s + v, 0) / mttrVals.length).toFixed(1) : null;
 
   // PdM high-risk machines
-  const highRisk = machines.filter(m => m.kpis?.failure_risk === 'high' || m.kpis?.failure_risk === 'critical').length;
+  const highRisk = assetList.filter(m => m.kpis?.failure_risk === 'high' || m.kpis?.failure_risk === 'critical').length;
 
-  // Per-machine OEE bar chart data
-  const oeeBarData = machines.slice(0, 8).map(m => ({
-    id:  m.asset_id.replace(/machine_|mach_/i, 'M'),
-    oee: Number((m.kpis?.oee_pct ?? 0).toFixed(1)),
-  }));
+  // Per-machine OEE bar chart data (discrete) / per-line production bar (cement)
+  const oeeBarData = isCement
+    ? assetList.slice(0, 8).map(m => ({
+        id:  m.asset_id,
+        oee: Number(((m.asset_type === 'cement_kiln' ? m.clinker_production_tph : m.production_tph) ?? 0).toFixed(1)),
+      }))
+    : machines.slice(0, 8).map(m => ({
+        id:  m.asset_id.replace(/machine_|mach_/i, 'M'),
+        oee: Number((m.kpis?.oee_pct ?? 0).toFixed(1)),
+      }));
 
 
   // ── Not configured guard ─────────────────────────────────────────────────────
@@ -269,25 +453,41 @@ export default function ManufacturingDashboard() {
       <DashboardHeader
         industryId="manufacturing"
         title="Smart Manufacturing / IIoT"
-        subtitle={`Live shop-floor telemetry · ${assetList.length} assets · ${machines.length} machines tracked`}
+        subtitle={isCement
+          ? `Cement Manufacturing · ${assetList.length} assets · ${kilns.length} kiln lines · ${mills.length} mills`
+          : `Discrete Manufacturing · ${assetList.length} assets · ${machines.length} machines tracked`}
         status={status}
         onRefresh={refresh}
       />
 
-      <div style={{ display:'flex', gap:12, marginBottom:24, flexWrap:'wrap' }}>
-        <KPICard label="Fleet Avg OEE"    value={avgOEE}      unit="%"   color={Number(avgOEE) >= 85 ? '#16a34a' : '#d97706'} sub="Target: 85%" />
-        <KPICard label="Running"          value={running}                color="#0284c7" sub={`of ${assetList.length} assets`} />
-        <KPICard label="Faulted"          value={faulted}                color={faulted > 0 ? '#dc2626' : '#16a34a'} sub="Machines in fault" />
-        <KPICard label="Avg MTBF"         value={avgMTBF ?? '—'}  unit="h"  color="#7c3aed" sub="Mean Time To Failure" />
-        <KPICard label="Avg MTTR"         value={avgMTTR ?? '—'}  unit="h"  color="#0891b2" sub="Mean Time To Repair" />
-        <KPICard label="PdM High Risk"    value={highRisk}               color={highRisk > 0 ? '#dc2626' : '#16a34a'} sub="Machines at risk" />
-        <KPICard label="Critical Alerts"  value={critAlerts}             color={critAlerts > 0 ? '#dc2626' : '#64748b'} />
-      </div>
+      <VerticalSelector value={vertical} onChange={setVertical} counts={verticalCounts} />
+
+      {isCement ? (
+        <div style={{ display:'flex', gap:12, marginBottom:24, flexWrap:'wrap' }}>
+          <KPICard label="Clinker Output"   value={totalClinkerTph.toFixed(1)} unit="t/h" color="#7c3aed" sub={`${kilns.length} kiln lines`} />
+          <KPICard label="Cement Output"    value={totalCementTph.toFixed(1)}  unit="t/h" color="#0284c7" sub={`${mills.length} mills`} />
+          <KPICard label="Avg SHC"          value={avgSHC ?? '—'} unit="kcal/kg" color={avgSHC && avgSHC > 750 ? '#d97706' : '#16a34a'} sub="Target: 730" />
+          <KPICard label="Avg TSR"          value={avgTSR ?? '—'} unit="%" color="#16a34a" sub="Alt-fuel substitution" />
+          <KPICard label="Avg Specific Power" value={avgSPC ?? '—'} unit="kWh/t" color="#7c3aed" sub="Finish mill" />
+          <KPICard label="Faulted"          value={faulted} color={faulted > 0 ? '#dc2626' : '#16a34a'} sub="Lines in fault" />
+          <KPICard label="Critical Alerts"  value={critAlerts} color={critAlerts > 0 ? '#dc2626' : '#64748b'} />
+        </div>
+      ) : (
+        <div style={{ display:'flex', gap:12, marginBottom:24, flexWrap:'wrap' }}>
+          <KPICard label="Fleet Avg OEE"    value={avgOEE}      unit="%"   color={Number(avgOEE) >= 85 ? '#16a34a' : '#d97706'} sub="Target: 85%" />
+          <KPICard label="Running"          value={running}                color="#0284c7" sub={`of ${assetList.length} assets`} />
+          <KPICard label="Faulted"          value={faulted}                color={faulted > 0 ? '#dc2626' : '#16a34a'} sub="Machines in fault" />
+          <KPICard label="Avg MTBF"         value={avgMTBF ?? '—'}  unit="h"  color="#7c3aed" sub="Mean Time To Failure" />
+          <KPICard label="Avg MTTR"         value={avgMTTR ?? '—'}  unit="h"  color="#0891b2" sub="Mean Time To Repair" />
+          <KPICard label="PdM High Risk"    value={highRisk}               color={highRisk > 0 ? '#dc2626' : '#16a34a'} sub="Machines at risk" />
+          <KPICard label="Critical Alerts"  value={critAlerts}             color={critAlerts > 0 ? '#dc2626' : '#64748b'} />
+        </div>
+      )}
 
       <div style={{ display:'grid', gridTemplateColumns: isMobile || isTablet ? '1fr' : '280px 1fr', gap:20, marginBottom:20 }}>
         <div style={{ display:'flex', flexDirection:'column', gap:8 }}>
           <div style={{ fontSize:12, fontWeight:600, color:'#64748b', textTransform:'uppercase',
-            letterSpacing:'0.06em', marginBottom:4 }}>Shop Floor ({assetList.length})</div>
+            letterSpacing:'0.06em', marginBottom:4 }}>{isCement ? 'Cement Plant' : 'Shop Floor'} ({assetList.length})</div>
           {assetList.length === 0 ? (
             <div style={{ textAlign:'center', padding:40, color:'#334155', fontSize:13,
               border:'1px dashed #cbd5e1', borderRadius:10 }}>
@@ -308,7 +508,7 @@ export default function ManufacturingDashboard() {
             <div style={{ background:'#ffffff', border:'1px solid #e2e8f0',
               borderRadius:12, padding:'16px 20px' }}>
               <div style={{ fontSize:13, fontWeight:600, color:'#475569', marginBottom:14 }}>
-                OEE & Vibration Trend
+                {isCement ? 'Avg SHC & Total Production Trend' : 'OEE & Vibration Trend'}
               </div>
               {history.length < 2 ? (
                 <div style={{ height:160, display:'flex', alignItems:'center', justifyContent:'center',
@@ -328,30 +528,30 @@ export default function ManufacturingDashboard() {
                     <Tooltip contentStyle={{ background:'#ffffff', border:'1px solid #e2e8f0',
                       borderRadius:8, fontSize:11, color:'#1e293b' }}/>
                     <Legend wrapperStyle={{ fontSize:10, color:'#64748b' }}/>
-                    <Area type="monotone" dataKey="avgOEE" name="OEE %" stroke="#8b5cf6" fill="url(#gOEE)" strokeWidth={2} dot={false} isAnimationActive={false}/>
+                    <Area type="monotone" dataKey="avgOEE" name={isCement ? 'Avg SHC (kcal/kg)' : 'OEE %'} stroke="#8b5cf6" fill="url(#gOEE)" strokeWidth={2} dot={false} isAnimationActive={false}/>
                   </AreaChart>
                 </ResponsiveContainer>
               )}
             </div>
 
-            {/* Per-machine OEE bar */}
+            {/* Per-line comparison bar */}
             <div style={{ background:'#ffffff', border:'1px solid #e2e8f0',
               borderRadius:12, padding:'16px 20px' }}>
               <div style={{ fontSize:13, fontWeight:600, color:'#475569', marginBottom:14 }}>
-                Machine OEE Comparison
+                {isCement ? 'Production by Line (t/h)' : 'Machine OEE Comparison'}
               </div>
               {oeeBarData.length === 0 ? (
                 <div style={{ height:160, display:'flex', alignItems:'center', justifyContent:'center',
-                  color:'#334155', fontSize:12 }}>No machines</div>
+                  color:'#334155', fontSize:12 }}>{isCement ? 'No lines' : 'No machines'}</div>
               ) : (
                 <ResponsiveContainer width="100%" height={160}>
                   <BarChart data={oeeBarData} margin={{ top:5, right:10, bottom:5, left:0 }}>
                     <CartesianGrid strokeDasharray="3 3" stroke="#e2e8f0" />
                     <XAxis dataKey="id" tick={{ fontSize:9, fill:'#475569' }} tickLine={false} axisLine={false}/>
-                    <YAxis domain={[0,100]} tick={{ fontSize:9, fill:'#475569' }} tickLine={false} axisLine={false} width={30}/>
+                    <YAxis domain={isCement ? undefined : [0,100]} tick={{ fontSize:9, fill:'#475569' }} tickLine={false} axisLine={false} width={30}/>
                     <Tooltip contentStyle={{ background:'#ffffff', border:'1px solid #e2e8f0',
                       borderRadius:8, fontSize:11, color:'#1e293b' }}/>
-                    <Bar dataKey="oee" name="OEE %" fill="#8b5cf6" radius={[4,4,0,0]} isAnimationActive={false}/>
+                    <Bar dataKey="oee" name={isCement ? 'Production t/h' : 'OEE %'} fill="#8b5cf6" radius={[4,4,0,0]} isAnimationActive={false}/>
                   </BarChart>
                 </ResponsiveContainer>
               )}
@@ -370,7 +570,9 @@ export default function ManufacturingDashboard() {
                   {selectedObj.processed_at && new Date(selectedObj.processed_at).toLocaleTimeString()}
                 </span>
               </div>
-              <MachineDetail asset={selectedObj} />
+              {selectedObj.asset_type === 'cement_kiln' || selectedObj.asset_type === 'cement_mill'
+                ? <CementDetail asset={selectedObj} />
+                : <MachineDetail asset={selectedObj} />}
             </div>
           )}
         </div>
