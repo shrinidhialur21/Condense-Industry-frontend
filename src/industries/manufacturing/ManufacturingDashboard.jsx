@@ -4,7 +4,8 @@
 import { useState, useEffect, useRef } from 'react';
 import {
   AreaChart, Area, BarChart, Bar, RadarChart, Radar, PolarGrid,
-  PolarAngleAxis, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer, Legend
+  PolarAngleAxis, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer, Legend,
+  ReferenceLine, Cell,
 } from 'recharts';
 import { useCondenseWS } from '../../hooks/useCondenseWS.js';
 import { INDUSTRIES }    from '../../config/industries.js';
@@ -17,12 +18,28 @@ import {
 const MAX_HISTORY = 40;
 
 const ASSET_META = {
-  machine:      { icon: '⚙️',  label: 'CNC Machine' },
-  conveyor:     { icon: '🏗️', label: 'Conveyor' },
-  robot:        { icon: '🤖', label: 'Robot Arm' },
-  sensor:       { icon: '📡', label: 'IIoT Sensor' },
-  cement_kiln:  { icon: '🏭', label: 'Cement Kiln' },
-  cement_mill:  { icon: '🪨', label: 'Cement Mill' },
+  machine:          { icon: '⚙️',  label: 'CNC Machine' },
+  conveyor:         { icon: '🏗️', label: 'Conveyor' },
+  robot:            { icon: '🤖', label: 'Robot Arm' },
+  sensor:           { icon: '📡', label: 'IIoT Sensor' },
+  cement_kiln:      { icon: '🏭', label: 'Cement Kiln' },
+  cement_mill:      { icon: '🪨', label: 'Cement Mill' },
+  rotary_equipment: { icon: '📳', label: 'Rotary Equipment' },
+};
+
+const MACHINE_TYPE_ICON = { pump: '💧', motor: '🔌', fan: '🌀', compressor: '🧯', gearbox: '⚙️' };
+
+// ISO 10816-3 severity zone colors — A/B = healthy, C = plan maintenance, D = unacceptable.
+const ISO_ZONE_COLOR = { A: '#16a34a', B: '#22c55e', C: '#d97706', D: '#dc2626' };
+
+const FAULT_LABEL = {
+  none:           'No fault signature',
+  imbalance:      'Rotor Imbalance',
+  misalignment:   'Shaft Misalignment',
+  looseness:      'Mechanical Looseness',
+  bearing_outer:  'Bearing — Outer Race Defect',
+  bearing_inner:  'Bearing — Inner Race Defect',
+  bearing_ball:   'Bearing — Rolling Element Defect',
 };
 
 // Manufacturing "field" verticals — same pipeline, different asset_types & KPIs.
@@ -40,6 +57,12 @@ const MFG_VERTICALS = {
     icon:  '🏗️',
     description: 'Kiln pyroprocessing & finish-mill grinding circuits',
     types: ['cement_kiln', 'cement_mill'],
+  },
+  vibration: {
+    label: 'Vibration Analysis',
+    icon:  '📳',
+    description: 'Rotary equipment — MEMS/piezo accelerometers, FFT spectrum, ISO 10816 & bearing-fault diagnosis',
+    types: ['rotary_equipment'],
   },
 };
 
@@ -94,9 +117,12 @@ function OEEDisplay({ oee = 0, availability = 0, performance = 0, quality = 0 })
 }
 
 function AssetCard({ asset, selected, onClick }) {
-  const meta   = ASSET_META[asset.asset_type] || { icon: '🔩', label: asset.asset_type };
-  const health = asset.kpis?.health_score ?? 100;
-  const oee    = asset.kpis?.oee_pct ?? null;
+  const meta     = ASSET_META[asset.asset_type] || { icon: '🔩', label: asset.asset_type };
+  const health   = asset.kpis?.health_score ?? 100;
+  const oee      = asset.kpis?.oee_pct ?? null;
+  const isRotary = asset.asset_type === 'rotary_equipment';
+  const zone     = asset.kpis?.iso_zone;
+  const faultType = asset.kpis?.fault_diagnosis;
   return (
     <div onClick={onClick} style={{
       background: selected ? 'rgba(139,92,246,0.08)' : '#ffffff',
@@ -105,14 +131,25 @@ function AssetCard({ asset, selected, onClick }) {
     }}>
       <div style={{ display:'flex', justifyContent:'space-between', alignItems:'flex-start', marginBottom:8 }}>
         <div>
-          <span style={{ fontSize:16, marginRight:6 }}>{meta.icon}</span>
+          <span style={{ fontSize:16, marginRight:6 }}>{isRotary ? (MACHINE_TYPE_ICON[asset.machine_type] || meta.icon) : meta.icon}</span>
           <span style={{ fontSize:12, fontWeight:600, color:'#475569' }}>{asset.asset_id}</span>
+          {isRotary && <span style={{ fontSize:10, color:'#94a3b8', marginLeft:6 }}>{asset.machine_type}</span>}
         </div>
         <StatusBadge status={asset.status} />
       </div>
       <div style={{ display:'flex', justifyContent:'space-between', alignItems:'center' }}>
         <div>
-          {oee != null ? (
+          {isRotary ? (
+            <div>
+              <span style={{ fontSize:11, fontWeight:800, color: zone ? ISO_ZONE_COLOR[zone] : '#64748b',
+                background: zone ? `${ISO_ZONE_COLOR[zone]}18` : '#f1f5f9', padding:'1px 7px', borderRadius:4 }}>
+                Zone {zone || '—'}
+              </span>
+              <div style={{ fontSize:12, color:'#64748b', marginTop:4 }}>
+                {asset.vibration_rms_velocity_mms != null ? `${asset.vibration_rms_velocity_mms.toFixed(2)} mm/s` : '—'}
+              </div>
+            </div>
+          ) : oee != null ? (
             <OEEDisplay oee={oee}
               availability={asset.availability_pct ?? 0}
               performance={asset.performance_pct ?? 0}
@@ -127,6 +164,12 @@ function AssetCard({ asset, selected, onClick }) {
         <div style={{ marginTop:8, fontSize:10, color:'#ef4444',
           background:'rgba(239,68,68,0.08)', padding:'3px 8px', borderRadius:4, display:'inline-block' }}>
           ⚡ High vibration {asset.vibration_g?.toFixed(2)} g
+        </div>
+      )}
+      {isRotary && faultType && faultType !== 'none' && (
+        <div style={{ marginTop:8, fontSize:10, color:'#dc2626',
+          background:'rgba(220,38,38,0.08)', padding:'3px 8px', borderRadius:4, display:'inline-block' }}>
+          ⚠️ {FAULT_LABEL[faultType] || faultType}
         </div>
       )}
     </div>
@@ -315,6 +358,167 @@ function CementDetail({ asset }) {
   );
 }
 
+// ── ISO 10816-3 severity zone strip (A/B/C/D) ────────────────────────────────
+function ISOZoneBand({ zone }) {
+  return (
+    <div style={{ display:'flex', gap:4 }}>
+      {['A', 'B', 'C', 'D'].map(z => (
+        <div key={z} style={{
+          flex:1, textAlign:'center', padding:'6px 4px', borderRadius:6,
+          background: z === zone ? ISO_ZONE_COLOR[z] : `${ISO_ZONE_COLOR[z]}18`,
+          color: z === zone ? '#ffffff' : ISO_ZONE_COLOR[z],
+          fontSize:11, fontWeight:800, border:`1px solid ${ISO_ZONE_COLOR[z]}40`,
+        }}>{z}</div>
+      ))}
+    </div>
+  );
+}
+
+function FaultDiagnosisPanel({ diagnosisType, confidence }) {
+  const isFault = diagnosisType && diagnosisType !== 'none';
+  const color = isFault ? '#dc2626' : '#16a34a';
+  return (
+    <div style={{ background: isFault ? '#fee2e2' : '#f0fdf4', border:`1px solid ${color}30`,
+      borderRadius:8, padding:'10px 14px', marginBottom:12 }}>
+      <div style={{ display:'flex', justifyContent:'space-between', alignItems:'center', flexWrap:'wrap', gap:8 }}>
+        <div>
+          <div style={{ fontSize:9, color:'#64748b', textTransform:'uppercase', letterSpacing:'0.06em' }}>
+            Fault Diagnosis (harmonic + envelope analysis)
+          </div>
+          <div style={{ fontSize:16, fontWeight:800, color, marginTop:2 }}>
+            {isFault ? `⚠️ ${FAULT_LABEL[diagnosisType] || diagnosisType}` : '✅ Healthy — no fault signature'}
+          </div>
+        </div>
+        {isFault && (
+          <div style={{ textAlign:'right' }}>
+            <div style={{ fontSize:9, color:'#64748b', textTransform:'uppercase', letterSpacing:'0.06em' }}>Confidence</div>
+            <div style={{ fontSize:18, fontWeight:800, color, fontFamily:'monospace' }}>{confidence}%</div>
+          </div>
+        )}
+      </div>
+    </div>
+  );
+}
+
+// FFT spectrum — bars colored by which diagnostic frequency band they fall in.
+// Blue = 1x/2x/3x running-speed harmonics (imbalance/misalignment/looseness signature).
+// Red  = bearing defect frequencies (BPFO/BPFI/BSF — envelope-analysis fingerprint).
+function FFTSpectrumChart({ asset }) {
+  const spectrum = asset.fft_spectrum || [];
+  const freqs    = asset.bearing_fault_freqs_hz || {};
+  const shaftHz  = asset.shaft_freq_hz || 0;
+  if (spectrum.length < 2) {
+    return <div style={{ height:200, display:'flex', alignItems:'center', justifyContent:'center', color:'#94a3b8', fontSize:12 }}>No spectrum data</div>;
+  }
+  const width = (spectrum[1].frequency_hz - spectrum[0].frequency_hz) * 1.5;
+  const near  = (f, target) => target > 0 && Math.abs(f - target) <= width;
+  const colorFor = (f) => {
+    if (near(f, freqs.bpfo) || near(f, freqs.bpfi) || near(f, freqs.bsf)) return '#dc2626';
+    if (near(f, shaftHz) || near(f, shaftHz * 2) || near(f, shaftHz * 3)) return '#0284c7';
+    return '#c4b5fd';
+  };
+  return (
+    <>
+      <ResponsiveContainer width="100%" height={200}>
+        <BarChart data={spectrum} margin={{ top:5, right:10, bottom:16, left:0 }}>
+          <CartesianGrid strokeDasharray="3 3" stroke="#e2e8f0" />
+          <XAxis dataKey="frequency_hz" tick={{ fontSize:8, fill:'#475569' }} tickLine={false} axisLine={false} interval={7}
+            label={{ value:'Frequency (Hz)', position:'insideBottom', offset:-6, fontSize:9, fill:'#64748b' }} />
+          <YAxis tick={{ fontSize:8, fill:'#475569' }} tickLine={false} axisLine={false} width={32} />
+          <Tooltip contentStyle={{ background:'#ffffff', border:'1px solid #e2e8f0', borderRadius:8, fontSize:11 }}
+            formatter={(v) => [`${v} mm/s`, 'Amplitude']} labelFormatter={(l) => `${l} Hz`} />
+          <Bar dataKey="amplitude_mms" isAnimationActive={false} radius={[2, 2, 0, 0]}>
+            {spectrum.map((pt, i) => <Cell key={i} fill={colorFor(pt.frequency_hz)} />)}
+          </Bar>
+        </BarChart>
+      </ResponsiveContainer>
+      <div style={{ display:'flex', gap:12, flexWrap:'wrap', fontSize:9, color:'#64748b', marginTop:4 }}>
+        <span><span style={{ color:'#0284c7' }}>■</span> 1x/2x/3x running speed ({shaftHz.toFixed(1)} Hz)</span>
+        <span><span style={{ color:'#dc2626' }}>■</span> Bearing bands (BPFO {freqs.bpfo}, BPFI {freqs.bpfi}, BSF {freqs.bsf} Hz)</span>
+      </div>
+    </>
+  );
+}
+
+function VibrationDetail({ asset }) {
+  const k = asset.kpis || {};
+  const zone = k.iso_zone;
+  const riskColor = k.failure_risk === 'critical' ? '#dc2626'
+    : k.failure_risk === 'high' ? '#d97706'
+    : k.failure_risk === 'medium' ? '#f59e0b' : '#16a34a';
+
+  return (
+    <div>
+      <FaultDiagnosisPanel diagnosisType={k.fault_diagnosis} confidence={k.fault_confidence_pct} />
+
+      <div style={{ marginBottom:12 }}>
+        <div style={{ fontSize:9, color:'#64748b', textTransform:'uppercase', letterSpacing:'0.06em', marginBottom:4 }}>
+          ISO 10816-3 Severity Zone
+          {zone && <span style={{ marginLeft:6, color: ISO_ZONE_COLOR[zone], textTransform:'none', letterSpacing:'normal' }}>({k.iso_zone_label})</span>}
+        </div>
+        <ISOZoneBand zone={zone} />
+      </div>
+
+      <div style={{ display:'flex', gap:8, marginBottom:12, flexWrap:'wrap' }}>
+        {[
+          { label:'RMS Velocity',  val:asset.vibration_rms_velocity_mms, unit:'mm/s', color:'#7c3aed' },
+          { label:'Peak Accel',    val:asset.vibration_peak_accel_g,     unit:'g',    color:'#0284c7' },
+          { label:'Crest Factor',  val:asset.crest_factor,               unit:'',     color: asset.crest_factor > 5 ? '#dc2626' : '#16a34a' },
+          { label:'Kurtosis',      val:asset.kurtosis,                   unit:'',     color: asset.kurtosis > 5 ? '#dc2626' : '#16a34a' },
+        ].map(item => (
+          <div key={item.label} style={{ flex:1, minWidth:90, background:'#f8fafc', border:'1px solid #e2e8f0', borderRadius:8, padding:'8px 10px', textAlign:'center' }}>
+            <div style={{ fontSize:9, color:'#64748b', textTransform:'uppercase', letterSpacing:'0.06em' }}>{item.label}</div>
+            <div style={{ fontSize:18, fontWeight:800, color:item.color, fontFamily:'monospace', marginTop:2 }}>
+              {item.val != null ? Number(item.val).toFixed(2) : '—'}
+              {item.unit && <span style={{ fontSize:10, color:'#94a3b8', marginLeft:2 }}>{item.unit}</span>}
+            </div>
+          </div>
+        ))}
+      </div>
+
+      <div style={{ display:'flex', gap:8, marginBottom:12, flexWrap:'wrap' }}>
+        {[
+          { label:'PdM Score',    val: k.pdm_score != null ? k.pdm_score.toFixed(1) : '—', unit:'/ 100', color: k.pdm_score >= 70 ? '#dc2626' : k.pdm_score >= 40 ? '#d97706' : '#16a34a' },
+          { label:'Failure Risk', val: k.failure_risk ? k.failure_risk.toUpperCase() : '—', unit:'', color:riskColor },
+          { label:'RUL',          val: k.rul_h != null ? Number(k.rul_h).toFixed(1) : '—',  unit:'h', color:'#0891b2' },
+          { label:'MTBF',         val: k.mtbf_h != null ? Number(k.mtbf_h).toFixed(1) : '—', unit:'h', color:'#7c3aed' },
+        ].map(item => (
+          <div key={item.label} style={{ flex:1, minWidth:90, background:'#f8fafc', border:'1px solid #e2e8f0', borderRadius:8, padding:'8px 10px', textAlign:'center' }}>
+            <div style={{ fontSize:9, color:'#64748b', textTransform:'uppercase', letterSpacing:'0.06em' }}>{item.label}</div>
+            <div style={{ fontSize:16, fontWeight:800, color:item.color, fontFamily:'monospace', marginTop:2 }}>
+              {item.val}
+              {item.unit && <span style={{ fontSize:10, color:'#94a3b8', marginLeft:2 }}>{item.unit}</span>}
+            </div>
+          </div>
+        ))}
+      </div>
+
+      <div style={{ background:'#ffffff', border:'1px solid #e2e8f0', borderRadius:8, padding:'10px 14px', marginBottom:12 }}>
+        <div style={{ fontSize:11, fontWeight:600, color:'#475569', marginBottom:8, display:'flex', alignItems:'center', gap:4 }}>
+          FFT Spectrum
+          <InfoTooltip text="Simulated FFT of the tri-axial accelerometer waveform. Peaks are injected at 1x/2x/3x running speed and at the bearing defect frequencies (BPFO/BPFI/BSF), matching the fault-diagnosis logic above." />
+        </div>
+        <FFTSpectrumChart asset={asset} />
+      </div>
+
+      <div style={{ display:'grid', gridTemplateColumns:'repeat(auto-fill, minmax(120px,1fr))', gap:8 }}>
+        <FieldCell label="Machine Type"  val={asset.machine_type} unit="" />
+        <FieldCell label="Rated Power"   val={asset.rated_power_kw} unit="kW" />
+        <FieldCell label="ISO Class"     val={asset.iso_class} unit="" />
+        <FieldCell label="Shaft Speed"   val={asset.shaft_speed_rpm} unit="rpm" />
+        <FieldCell label="1x Harmonic"   val={asset.harmonic_1x_mms} unit="mm/s" />
+        <FieldCell label="2x Harmonic"   val={asset.harmonic_2x_mms} unit="mm/s" />
+        <FieldCell label="BPFO"          val={asset.bearing_fault_freqs_hz?.bpfo} unit="Hz" />
+        <FieldCell label="BPFI"          val={asset.bearing_fault_freqs_hz?.bpfi} unit="Hz" />
+        <FieldCell label="Bearing Temp"  val={asset.bearing_temp_c} unit="°C" highlight={asset.bearing_temp_c > 70 ? 'danger' : null} />
+        <FieldCell label="Sensor"        val={asset.sensor_type} unit="" />
+        <FieldCell label="Sample Rate"   val={asset.sample_rate_hz} unit="Hz" />
+        <FieldCell label="Fault Count"   val={k.fault_count} unit="" />
+      </div>
+    </div>
+  );
+}
+
 export default function ManufacturingDashboard() {
   const industry = INDUSTRIES.manufacturing;
   const { status, assets, alerts, refresh } = useCondenseWS(industry.apiUrl);
@@ -360,13 +564,29 @@ export default function ManufacturingDashboard() {
   const avgTSR = tsrVals.length ? (tsrVals.reduce((s,v)=>s+v,0)/tsrVals.length).toFixed(1) : null;
   const avgSPC = spcVals.length ? (spcVals.reduce((s,v)=>s+v,0)/spcVals.length).toFixed(1) : null;
 
+  // Vibration / Predictive Maintenance fleet aggregates
+  const isVibration  = vertical === 'vibration';
+  const rotaryAssets = assetList.filter(a => a.asset_type === 'rotary_equipment');
+  const rmsVals      = rotaryAssets.filter(a => a.vibration_rms_velocity_mms != null).map(a => a.vibration_rms_velocity_mms);
+  const pdmVals       = rotaryAssets.filter(a => a.kpis?.pdm_score != null).map(a => a.kpis.pdm_score);
+  const avgRMS        = rmsVals.length ? (rmsVals.reduce((s,v)=>s+v,0)/rmsVals.length).toFixed(2) : null;
+  const avgPdMVib     = pdmVals.length ? (pdmVals.reduce((s,v)=>s+v,0)/pdmVals.length).toFixed(1) : null;
+  const zoneDCount    = rotaryAssets.filter(a => a.kpis?.iso_zone === 'D').length;
+  const zoneCCount    = rotaryAssets.filter(a => a.kpis?.iso_zone === 'C').length;
+  const bearingFaultCount = rotaryAssets.filter(a => ['bearing_outer','bearing_inner','bearing_ball'].includes(a.kpis?.fault_diagnosis)).length;
+
   useEffect(() => {
     if (assetList.length === 0) return;
     const hasChanged = assetList.some(a => prevRef.current[a.asset_id]?.processed_at !== a.processed_at);
     if (!hasChanged) return;
     prevRef.current = assets;
 
-    if (isCement) {
+    if (isVibration) {
+      const avgRMSnow = rmsVals.length ? Number((rmsVals.reduce((s,v)=>s+v,0)/rmsVals.length).toFixed(3)) : 0;
+      const avgPdMnow = pdmVals.length ? Number((pdmVals.reduce((s,v)=>s+v,0)/pdmVals.length).toFixed(1)) : 0;
+      const time = new Date().toLocaleTimeString('en', { hour12:false, hour:'2-digit', minute:'2-digit', second:'2-digit' });
+      setHistory(prev => [...prev, { time, avgOEE: avgRMSnow, avgVibration: avgPdMnow }].slice(-MAX_HISTORY));
+    } else if (isCement) {
       const avgSHCnow = shcVals.length ? Number((shcVals.reduce((s,v)=>s+v,0)/shcVals.length).toFixed(0)) : 0;
       const totalProdNow = Number((totalClinkerTph + totalCementTph).toFixed(1));
       const time = new Date().toLocaleTimeString('en', { hour12:false, hour:'2-digit', minute:'2-digit', second:'2-digit' });
@@ -398,8 +618,14 @@ export default function ManufacturingDashboard() {
   // PdM high-risk machines
   const highRisk = assetList.filter(m => m.kpis?.failure_risk === 'high' || m.kpis?.failure_risk === 'critical').length;
 
-  // Per-machine OEE bar chart data (discrete) / per-line production bar (cement)
-  const oeeBarData = isCement
+  // Per-machine OEE bar chart data (discrete) / per-line production bar (cement) / per-asset RMS velocity (vibration)
+  const oeeBarData = isVibration
+    ? rotaryAssets.slice(0, 8).map(m => ({
+        id:   m.asset_id,
+        oee:  Number((m.vibration_rms_velocity_mms ?? 0).toFixed(2)),
+        zone: m.kpis?.iso_zone,
+      }))
+    : isCement
     ? assetList.slice(0, 8).map(m => ({
         id:  m.asset_id,
         oee: Number(((m.asset_type === 'cement_kiln' ? m.clinker_production_tph : m.production_tph) ?? 0).toFixed(1)),
@@ -461,7 +687,9 @@ export default function ManufacturingDashboard() {
       <DashboardHeader
         industryId="manufacturing"
         title="Smart Manufacturing / IIoT"
-        subtitle={isCement
+        subtitle={isVibration
+          ? `Vibration Analysis · ${assetList.length} rotary assets · ${bearingFaultCount} bearing faults · ${zoneDCount} in Zone D`
+          : isCement
           ? `Cement Manufacturing · ${assetList.length} assets · ${kilns.length} kiln lines · ${mills.length} mills`
           : `Discrete Manufacturing · ${assetList.length} assets · ${machines.length} machines tracked`}
         status={status}
@@ -470,7 +698,17 @@ export default function ManufacturingDashboard() {
 
       <VerticalSelector value={vertical} onChange={setVertical} counts={verticalCounts} />
 
-      {isCement ? (
+      {isVibration ? (
+        <div style={{ display:'flex', gap:12, marginBottom:24, flexWrap:'wrap' }}>
+          <KPICard label="Avg RMS Velocity" value={avgRMS ?? '—'} unit="mm/s" color={zoneDCount > 0 ? '#dc2626' : '#16a34a'} sub="ISO 10816-3" />
+          <KPICard label="Zone D (Critical)" value={zoneDCount} color={zoneDCount > 0 ? '#dc2626' : '#16a34a'} sub="Unacceptable vibration" />
+          <KPICard label="Zone C (Warning)" value={zoneCCount} color={zoneCCount > 0 ? '#d97706' : '#16a34a'} sub="Plan maintenance" />
+          <KPICard label="Bearing Faults"   value={bearingFaultCount} color={bearingFaultCount > 0 ? '#dc2626' : '#16a34a'} sub="BPFO/BPFI/BSF match" />
+          <KPICard label="Avg PdM Score"    value={avgPdMVib ?? '—'} unit="/ 100" color="#7c3aed" sub="Fleet predictive maintenance" />
+          <KPICard label="Faulted"          value={faulted} color={faulted > 0 ? '#dc2626' : '#16a34a'} sub="Assets in fault" />
+          <KPICard label="Critical Alerts"  value={critAlerts} color={critAlerts > 0 ? '#dc2626' : '#64748b'} />
+        </div>
+      ) : isCement ? (
         <div style={{ display:'flex', gap:12, marginBottom:24, flexWrap:'wrap' }}>
           <KPICard label="Clinker Output"   value={totalClinkerTph.toFixed(1)} unit="t/h" color="#7c3aed" sub={`${kilns.length} kiln lines`} />
           <KPICard label="Cement Output"    value={totalCementTph.toFixed(1)}  unit="t/h" color="#0284c7" sub={`${mills.length} mills`} />
@@ -495,7 +733,7 @@ export default function ManufacturingDashboard() {
       <div style={{ display:'grid', gridTemplateColumns: isMobile || isTablet ? '1fr' : '280px 1fr', gap:20, marginBottom:20 }}>
         <div style={{ display:'flex', flexDirection:'column', gap:8 }}>
           <div style={{ fontSize:12, fontWeight:600, color:'#64748b', textTransform:'uppercase',
-            letterSpacing:'0.06em', marginBottom:4 }}>{isCement ? 'Cement Plant' : 'Shop Floor'} ({assetList.length})</div>
+            letterSpacing:'0.06em', marginBottom:4 }}>{isVibration ? 'Rotary Equipment' : isCement ? 'Cement Plant' : 'Shop Floor'} ({assetList.length})</div>
           {assetList.length === 0 ? (
             <div style={{ textAlign:'center', padding:40, color:'#334155', fontSize:13,
               border:'1px dashed #cbd5e1', borderRadius:10 }}>
@@ -516,7 +754,7 @@ export default function ManufacturingDashboard() {
             <div style={{ background:'#ffffff', border:'1px solid #e2e8f0',
               borderRadius:12, padding:'16px 20px' }}>
               <div style={{ fontSize:13, fontWeight:600, color:'#475569', marginBottom:14 }}>
-                {isCement ? 'Avg SHC & Total Production Trend' : 'OEE & Vibration Trend'}
+                {isVibration ? 'Avg RMS Velocity & PdM Score Trend' : isCement ? 'Avg SHC & Total Production Trend' : 'OEE & Vibration Trend'}
               </div>
               {history.length < 2 ? (
                 <div style={{ height:160, display:'flex', alignItems:'center', justifyContent:'center',
@@ -536,7 +774,7 @@ export default function ManufacturingDashboard() {
                     <Tooltip contentStyle={{ background:'#ffffff', border:'1px solid #e2e8f0',
                       borderRadius:8, fontSize:11, color:'#1e293b' }}/>
                     <Legend wrapperStyle={{ fontSize:10, color:'#64748b' }}/>
-                    <Area type="monotone" dataKey="avgOEE" name={isCement ? 'Avg SHC (kcal/kg)' : 'OEE %'} stroke="#8b5cf6" fill="url(#gOEE)" strokeWidth={2} dot={false} isAnimationActive={false}/>
+                    <Area type="monotone" dataKey="avgOEE" name={isVibration ? 'Avg RMS Velocity (mm/s)' : isCement ? 'Avg SHC (kcal/kg)' : 'OEE %'} stroke="#8b5cf6" fill="url(#gOEE)" strokeWidth={2} dot={false} isAnimationActive={false}/>
                   </AreaChart>
                 </ResponsiveContainer>
               )}
@@ -546,20 +784,22 @@ export default function ManufacturingDashboard() {
             <div style={{ background:'#ffffff', border:'1px solid #e2e8f0',
               borderRadius:12, padding:'16px 20px' }}>
               <div style={{ fontSize:13, fontWeight:600, color:'#475569', marginBottom:14 }}>
-                {isCement ? 'Production by Line (t/h)' : 'Machine OEE Comparison'}
+                {isVibration ? 'RMS Velocity by Asset (mm/s)' : isCement ? 'Production by Line (t/h)' : 'Machine OEE Comparison'}
               </div>
               {oeeBarData.length === 0 ? (
                 <div style={{ height:160, display:'flex', alignItems:'center', justifyContent:'center',
-                  color:'#334155', fontSize:12 }}>{isCement ? 'No lines' : 'No machines'}</div>
+                  color:'#334155', fontSize:12 }}>{isVibration ? 'No rotary assets' : isCement ? 'No lines' : 'No machines'}</div>
               ) : (
                 <ResponsiveContainer width="100%" height={160}>
                   <BarChart data={oeeBarData} margin={{ top:5, right:10, bottom:5, left:0 }}>
                     <CartesianGrid strokeDasharray="3 3" stroke="#e2e8f0" />
                     <XAxis dataKey="id" tick={{ fontSize:9, fill:'#475569' }} tickLine={false} axisLine={false}/>
-                    <YAxis domain={isCement ? undefined : [0,100]} tick={{ fontSize:9, fill:'#475569' }} tickLine={false} axisLine={false} width={30}/>
+                    <YAxis domain={isCement || isVibration ? undefined : [0,100]} tick={{ fontSize:9, fill:'#475569' }} tickLine={false} axisLine={false} width={30}/>
                     <Tooltip contentStyle={{ background:'#ffffff', border:'1px solid #e2e8f0',
                       borderRadius:8, fontSize:11, color:'#1e293b' }}/>
-                    <Bar dataKey="oee" name={isCement ? 'Production t/h' : 'OEE %'} fill="#8b5cf6" radius={[4,4,0,0]} isAnimationActive={false}/>
+                    <Bar dataKey="oee" name={isVibration ? 'RMS Velocity mm/s' : isCement ? 'Production t/h' : 'OEE %'} fill="#8b5cf6" radius={[4,4,0,0]} isAnimationActive={false}>
+                      {isVibration && oeeBarData.map((d, i) => <Cell key={i} fill={ISO_ZONE_COLOR[d.zone] || '#8b5cf6'} />)}
+                    </Bar>
                   </BarChart>
                 </ResponsiveContainer>
               )}
@@ -580,6 +820,8 @@ export default function ManufacturingDashboard() {
               </div>
               {selectedObj.asset_type === 'cement_kiln' || selectedObj.asset_type === 'cement_mill'
                 ? <CementDetail asset={selectedObj} />
+                : selectedObj.asset_type === 'rotary_equipment'
+                ? <VibrationDetail asset={selectedObj} />
                 : <MachineDetail asset={selectedObj} />}
             </div>
           )}
