@@ -33,7 +33,10 @@ const ASSET_META = {
   vehicle: { icon: "🚙", label: "Vehicle",             primaryKey: "speed_kmh", primaryUnit: "km/h" },
   truck:   { icon: "🚛", label: "Truck",               primaryKey: "speed_kmh", primaryUnit: "km/h" },
   commercial_vehicle: { icon: "🚐", label: "OBD Fleet Vehicle", primaryKey: "veh_spd", primaryUnit: "km/h" },
+  digital_cockpit: { icon: "🖥️", label: "Digital Cockpit", primaryKey: "cockpit_health_score", primaryUnit: "/100" },
 };
+
+const DTC_SEVERITY_COLOR = { critical: '#dc2626', warning: '#d97706', info: '#0284c7', none: '#16a34a' };
 
 function SpeedBar({ speed = 0, max = 200 }) {
   const pct = Math.min(100, (speed / max) * 100);
@@ -663,6 +666,151 @@ function CommercialVehicleDetail({ asset }) {
   );
 }
 
+// ── Digital Cockpit Vehicle Card ──────────────────────────────
+function CockpitVehicleCard({ asset, selected, onClick }) {
+  const k = asset.kpis || {};
+  const score = k.cockpit_health_score;
+  const scoreColor = score >= 80 ? '#16a34a' : score >= 50 ? '#d97706' : '#dc2626';
+  const sevColor = DTC_SEVERITY_COLOR[k.highest_severity] || DTC_SEVERITY_COLOR.none;
+  return (
+    <div onClick={onClick} style={{
+      background: selected ? 'rgba(59,130,246,0.06)' : '#ffffff',
+      border: `1px solid ${selected ? 'rgba(59,130,246,0.4)' : '#e2e8f0'}`,
+      borderRadius:10, padding:'12px 14px', cursor:'pointer', transition:'all 0.15s',
+    }}>
+      <div style={{ display:'flex', justifyContent:'space-between', alignItems:'flex-start', marginBottom:8 }}>
+        <div>
+          <span style={{ fontSize:15, marginRight:5 }}>🖥️</span>
+          <span style={{ fontSize:12, fontWeight:700, color:'#1e293b' }}>{asset.asset_id}</span>
+          {asset.is_simulated && (
+            <span style={{ fontSize:8, color:'#94a3b8', marginLeft:6, fontFamily:'monospace' }}>SIM</span>
+          )}
+          <div style={{ fontSize:9, color:'#64748b', marginTop:2 }}>{asset.vehicle_model || '—'}</div>
+        </div>
+        {k.highest_severity && k.highest_severity !== 'none' ? (
+          <span style={{ fontSize:9, fontWeight:700, padding:'2px 8px', borderRadius:10,
+            background:sevColor+'18', color:sevColor, textTransform:'uppercase' }}>
+            {k.highest_severity}
+          </span>
+        ) : (
+          <span style={{ fontSize:9, fontWeight:700, padding:'2px 8px', borderRadius:10,
+            background:'#dcfce7', color:'#16a34a' }}>OK</span>
+        )}
+      </div>
+
+      <div style={{ display:'flex', gap:8, marginBottom:8 }}>
+        <div style={{ flex:1, background:'#f8fafc', borderRadius:6, padding:'5px 8px', textAlign:'center' }}>
+          <div style={{ fontSize:9, color:'#64748b', textTransform:'uppercase' }}>Health</div>
+          <div style={{ fontSize:16, fontWeight:800, color:scoreColor, fontFamily:'monospace' }}>
+            {score != null ? score : '—'}<span style={{ fontSize:9, color:'#94a3b8' }}> /100</span>
+          </div>
+        </div>
+        <div style={{ flex:1, background:'#f8fafc', borderRadius:6, padding:'5px 8px', textAlign:'center' }}>
+          <div style={{ fontSize:9, color:'#64748b', textTransform:'uppercase' }}>DTCs</div>
+          <div style={{ fontSize:16, fontWeight:800, color: k.active_dtc_count > 0 ? '#dc2626' : '#16a34a', fontFamily:'monospace' }}>
+            {k.active_dtc_count ?? 0}
+          </div>
+        </div>
+      </div>
+
+      {k.ota_fix_recommended && (
+        <span style={{ fontSize:9, fontWeight:700, padding:'2px 7px', borderRadius:10,
+          background:'#dbeafe', color:'#1d4ed8' }}>
+          📡 OTA fix available
+        </span>
+      )}
+      {asset.dealer_name && (
+        <div style={{ fontSize:9, color:'#94a3b8', marginTop:6 }}>🏬 {asset.dealer_name}</div>
+      )}
+    </div>
+  );
+}
+
+// ── Digital Cockpit Detail Panel ──────────────────────────────
+function CockpitVehicleDetail({ asset }) {
+  const k = asset.kpis || {};
+  const dtcCodes = asset.dtc_codes || [];
+
+  return (
+    <div style={{ display:'flex', flexDirection:'column', gap:16 }}>
+
+      {/* ── System Health Gauges ── */}
+      <div>
+        <div style={{ fontSize:11, fontWeight:700, color:'#475569', textTransform:'uppercase',
+          letterSpacing:'0.08em', marginBottom:8 }}>💻 System Health</div>
+        <div style={{ display:'grid', gridTemplateColumns:'repeat(auto-fill, minmax(120px,1fr))', gap:8 }}>
+          <KpiTileCV label="CPU Utilization" value={k.cpu_utilization_pct} unit="%"
+            color={k.cpu_utilization_pct > 85 ? '#dc2626' : '#475569'} />
+          <KpiTileCV label="RAM Utilization" value={k.ram_utilization_pct} unit="%" color="#475569" />
+          <KpiTileCV label="GPU Utilization" value={k.gpu_utilization_pct} unit="%"
+            color={k.gpu_utilization_pct > 85 ? '#dc2626' : '#475569'} />
+          <KpiTileCV label="Storage (UFS)" value={k.ufs_utilization_pct} unit="%"
+            color={k.ufs_utilization_pct > 99 ? '#dc2626' : '#475569'} />
+          <KpiTileCV label="SoC Thermal" value={k.thermal_c} unit="°C"
+            color={k.thermal_c > 85 ? '#dc2626' : k.thermal_c > 65 ? '#d97706' : '#475569'} />
+          <KpiTileCV label="Voltage" value={k.voltage_status}
+            color={k.voltage_status && k.voltage_status !== 'NORMAL_VALUE' ? '#dc2626' : '#16a34a'} />
+          <KpiTileCV label="System State" value={asset.system_state} small color="#475569" />
+          <KpiTileCV label="Black Screens (session)" value={k.black_screen_count_session}
+            color={k.black_screen_count_session > 0 ? '#d97706' : '#16a34a'} />
+        </div>
+      </div>
+
+      {/* ── OTA Fix Recommendation ── */}
+      {k.ota_fix_recommended && (
+        <div style={{ padding:'10px 14px', background:'#eff6ff', border:'1px solid #bfdbfe',
+          borderRadius:10, fontSize:11, color:'#1d4ed8' }}>
+          📡 <strong>OTA fix recommended:</strong> <span style={{ fontFamily:'monospace' }}>{k.ota_fix_package}</span>
+          <div style={{ fontSize:10, color:'#3b82f6', marginTop:4 }}>
+            Remote software fix available — pushing this OTA package can resolve the fault(s) below without a workshop visit.
+          </div>
+        </div>
+      )}
+
+      {/* ── Active DTC Codes ── */}
+      <div>
+        <div style={{ fontSize:11, fontWeight:700, color:'#475569', textTransform:'uppercase',
+          letterSpacing:'0.08em', marginBottom:8 }}>
+          🔧 Active DTC Codes ({dtcCodes.length})
+        </div>
+        {dtcCodes.length === 0 ? (
+          <div style={{ padding:'12px 14px', background:'#f0fdf4', border:'1px solid #bbf7d0',
+            borderRadius:10, fontSize:11, color:'#16a34a' }}>
+            ✅ No active faults — cockpit is healthy.
+          </div>
+        ) : (
+          <div style={{ display:'flex', flexDirection:'column', gap:6 }}>
+            {dtcCodes.map(dtc => {
+              const color = DTC_SEVERITY_COLOR[dtc.severity] || '#64748b';
+              return (
+                <div key={dtc.code} style={{ display:'flex', justifyContent:'space-between', alignItems:'center',
+                  padding:'8px 12px', background:'#f8fafc', border:`1px solid ${color}30`, borderRadius:8 }}>
+                  <div>
+                    <span style={{ fontSize:9, fontWeight:700, padding:'2px 7px', borderRadius:10,
+                      background:color+'18', color, textTransform:'uppercase', marginRight:8 }}>
+                      {dtc.severity}
+                    </span>
+                    <span style={{ fontSize:11, fontWeight:700, color:'#1e293b', fontFamily:'monospace' }}>{dtc.code}</span>
+                    <span style={{ fontSize:11, color:'#475569', marginLeft:8 }}>{dtc.description}</span>
+                    <div style={{ fontSize:9, color:'#94a3b8', marginTop:2 }}>
+                      {dtc.category} · seen {dtc.occurrence_count}× · since {new Date(dtc.first_seen).toLocaleTimeString()}
+                    </div>
+                  </div>
+                  {dtc.ota_fixable && (
+                    <span style={{ fontSize:9, color:'#1d4ed8', fontWeight:600, whiteSpace:'nowrap', marginLeft:8 }}>
+                      📡 OTA
+                    </span>
+                  )}
+                </div>
+              );
+            })}
+          </div>
+        )}
+      </div>
+    </div>
+  );
+}
+
 export default function AutomotiveDashboard() {
   const industry = INDUSTRIES.automotive;
   const { status, assets, alerts, refresh } = useCondenseWS(industry.apiUrl);
@@ -670,7 +818,7 @@ export default function AutomotiveDashboard() {
 
   const [selectedAsset, setSelectedAsset] = useState(null);
   const [history, setHistory] = useState([]);
-  const [activeTab, setActiveTab] = useState('obd_fleet'); // 'telematics' | 'obd_fleet'
+  const [activeTab, setActiveTab] = useState('obd_fleet'); // 'telematics' | 'obd_fleet' | 'cockpit_dtc'
   const prevRef = useRef({});
   // Position history for map trails: {vehicle_id: [{lat, lon}, ...]}
   const posHistory = useRef({});
@@ -729,8 +877,9 @@ export default function AutomotiveDashboard() {
   }, [assets]);
 
   // ── Existing telematics fleet ─────────────────────────────────
-  const telematics = assetList.filter(a => a.asset_type !== 'commercial_vehicle');
+  const telematics = assetList.filter(a => a.asset_type !== 'commercial_vehicle' && a.asset_type !== 'digital_cockpit');
   const cvFleet    = assetList.filter(a => a.asset_type === 'commercial_vehicle');
+  const cockpitFleet = assetList.filter(a => a.asset_type === 'digital_cockpit');
 
   const active = telematics.filter(
     (a) => a.ignition_on || a.speed_kmh > 0
@@ -757,6 +906,14 @@ export default function AutomotiveDashboard() {
   const cvOverspeed = cvFleet.filter(v => (v.veh_spd || 0) > 80).length;
   const cvIdleFuelWaste = cvFleet.reduce((s, v) => s + (v.kpis?.idle_fuel_wasted_L || 0), 0).toFixed(2);
   const cvTotalIdleCost = cvFleet.reduce((s, v) => s + (v.kpis?.idle_cost_inr || 0), 0).toFixed(0);
+
+  // ── Digital Cockpit KPIs ──────────────────────────────────────
+  const cockpitAvgHealth = cockpitFleet.length
+    ? Math.round(cockpitFleet.reduce((s, v) => s + (v.kpis?.cockpit_health_score ?? 100), 0) / cockpitFleet.length)
+    : null;
+  const cockpitTotalDTCs = cockpitFleet.reduce((s, v) => s + (v.kpis?.active_dtc_count || 0), 0);
+  const cockpitCritical  = cockpitFleet.filter(v => v.kpis?.highest_severity === 'critical').length;
+  const cockpitOtaAvailable = cockpitFleet.filter(v => v.kpis?.ota_fix_recommended).length;
 
 
   // ── Not configured guard ─────────────────────────────────────────────────────
@@ -818,7 +975,7 @@ export default function AutomotiveDashboard() {
       <DashboardHeader
         industryId="automotive"
         title="Automotive & Telematics"
-        subtitle={`${telematics.length} telematics · ${cvFleet.length} OBD fleet vehicles`}
+        subtitle={`${telematics.length} telematics · ${cvFleet.length} OBD fleet · ${cockpitFleet.length} digital cockpit`}
         status={status}
         onRefresh={refresh}
       />
@@ -828,6 +985,7 @@ export default function AutomotiveDashboard() {
         {[
           { id:'telematics', label:`🚙 Telematics Fleet (${telematics.length})` },
           { id:'obd_fleet',  label:`🚐 OBD Commercial Fleet (${cvFleet.length})` },
+          { id:'cockpit_dtc', label:`🖥️ Digital Cockpit (${cockpitFleet.length})` },
         ].map(tab => (
           <button key={tab.id} onClick={() => setActiveTab(tab.id)} style={{
             flex:1, padding:'8px 16px', border:'none', borderRadius:8, cursor:'pointer',
@@ -1061,6 +1219,62 @@ export default function AutomotiveDashboard() {
               <div style={{ background:'#f8fafc', border:'1px dashed #cbd5e1', borderRadius:12, padding:40,
                 textAlign:'center', color:'#94a3b8', fontSize:13 }}>
                 👆 Select a vehicle from the list or click on the map to view VLD + Driver Analytics
+              </div>
+            )}
+          </div>
+        </div>
+      </>}
+
+      {/* ══ DIGITAL COCKPIT TAB (MSIL / RBIN) ══ */}
+      {activeTab === 'cockpit_dtc' && <>
+        <div style={{ display:'flex', gap:12, marginBottom:20, flexWrap:'wrap' }}>
+          <KPICard label="Cockpits Online"   value={cockpitFleet.length}          color="#22c55e" sub="Digital cockpit / Suzuki Connect" />
+          <KPICard label="Avg Health Score"  value={cockpitAvgHealth ?? '—'} unit="/100"
+            color={cockpitAvgHealth >= 80 ? '#16a34a' : cockpitAvgHealth >= 50 ? '#d97706' : '#dc2626'} />
+          <KPICard label="Active DTC Codes"  value={cockpitTotalDTCs}             color={cockpitTotalDTCs > 0 ? '#ef4444' : '#22c55e'} />
+          <KPICard label="Critical Faults"   value={cockpitCritical}              color={cockpitCritical > 0 ? '#ef4444' : '#22c55e'} />
+          <KPICard label="OTA Fix Available" value={cockpitOtaAvailable}          color={cockpitOtaAvailable > 0 ? '#1d4ed8' : '#94a3b8'}
+            sub="Remediable via software update" />
+        </div>
+
+        <div style={{ display:'grid', gridTemplateColumns: isMobile || isTablet ? '1fr' : '300px 1fr', gap:20 }}>
+          <div style={{ display:'flex', flexDirection:'column', gap:8 }}>
+            <div style={{ fontSize:12, fontWeight:600, color:'#64748b', textTransform:'uppercase',
+              letterSpacing:'0.06em', marginBottom:4 }}>Digital Cockpits ({cockpitFleet.length})</div>
+            {cockpitFleet.length === 0 ? (
+              <div style={{ textAlign:'center', padding:40, color:'#334155', fontSize:13,
+                border:'1px dashed #cbd5e1', borderRadius:10 }}>
+                {status === 'connecting' ? 'Connecting…' : 'No cockpit data. Start the Cockpit repeater + diagnostics transform.'}
+              </div>
+            ) : (
+              cockpitFleet.map(v => (
+                <CockpitVehicleCard key={v.asset_id} asset={v}
+                  selected={selectedAsset === v.asset_id}
+                  onClick={() => setSelectedAsset(selectedAsset === v.asset_id ? null : v.asset_id)} />
+              ))
+            )}
+          </div>
+
+          <div>
+            {selectedAsset && assets[selectedAsset]?.asset_type === 'digital_cockpit' ? (
+              <div style={{ background:'#ffffff', border:'1px solid #e2e8f0', borderRadius:12, padding:'16px 20px' }}>
+                <div style={{ display:'flex', justifyContent:'space-between', alignItems:'center', marginBottom:14 }}>
+                  <div style={{ fontSize:13, fontWeight:700, color:'#1e293b' }}>
+                    🖥️ {selectedAsset}
+                    <span style={{ marginLeft:8, fontSize:10, color:'#64748b', fontWeight:500 }}>
+                      {assets[selectedAsset]?.vehicle_model}
+                    </span>
+                  </div>
+                  <span style={{ fontSize:10, color:'#64748b' }}>
+                    {assets[selectedAsset]?.processed_at && new Date(assets[selectedAsset].processed_at).toLocaleTimeString()}
+                  </span>
+                </div>
+                <CockpitVehicleDetail asset={assets[selectedAsset]} />
+              </div>
+            ) : (
+              <div style={{ background:'#f8fafc', border:'1px dashed #cbd5e1', borderRadius:12, padding:40,
+                textAlign:'center', color:'#94a3b8', fontSize:13 }}>
+                👆 Select a vehicle from the list to view DTC codes, health gauges and OTA fix recommendations
               </div>
             )}
           </div>
