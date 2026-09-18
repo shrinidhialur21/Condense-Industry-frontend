@@ -21,14 +21,84 @@ import { useCondenseWS } from "../../hooks/useCondenseWS.js";
 import { INDUSTRIES } from "../../config/industries.js";
 import { useWindowSize } from "../../hooks/useWindowSize.js";
 import {
-  ConnectionStatus,
-  KPICard,
   AlertFeed,
   StatusBadge,
   HealthGauge,
-  DashboardHeader,
-  RefreshButton,
+  THEME,
+  ThemedDashboardHeader,
+  ThemedKPICard,
+  NotConfiguredGuard,
 } from "../../components/shared.jsx";
+import retailHero from "../../assets/industries/retail.jpg";
+
+// Heatmap cell — background intensity and pulse are driven by each zone's
+// REAL footfall reading, not a decorative random fill.
+function HeatCell({ zone, maxFootfall }) {
+  const footfall = zone.footfall_last_hour ?? zone.footfall ?? 0;
+  const intensity = maxFootfall > 0 ? footfall / maxFootfall : 0;
+  const isHot = intensity >= 0.75;
+  const bg = intensity >= 0.75 ? 'rgba(239,68,68,0.85)'
+    : intensity >= 0.45 ? 'rgba(245,158,11,0.8)'
+    : intensity >= 0.15 ? 'rgba(234,179,8,0.65)'
+    : 'rgba(34,197,94,0.6)';
+  return (
+    <div title={`${zone.asset_id}: ${footfall} visitors/hr`} style={{
+      position: 'relative', borderRadius: 6, background: bg, minHeight: 34,
+      display: 'flex', alignItems: 'center', justifyContent: 'center',
+      animation: isHot ? 'condense-heat-pulse 1.4s ease-in-out infinite' : 'none',
+    }}>
+      <span style={{ fontSize: 9.5, fontWeight: 700, color: '#0b1220' }}>{footfall}</span>
+      <style>{`@keyframes condense-heat-pulse { 0%,100% { opacity:1; } 50% { opacity:0.55; } }`}</style>
+    </div>
+  );
+}
+
+// Hero — a live per-zone footfall heatmap. Cell color/pulse comes straight
+// from real footfall_last_hour readings; no simulated grid.
+function HeatmapHero({ photo, zones, stats }) {
+  const maxFootfall = zones.reduce((m, z) => Math.max(m, z.footfall_last_hour ?? z.footfall ?? 0), 0);
+  return (
+    <div style={{ position: 'relative', borderRadius: 16, overflow: 'hidden', marginBottom: 20, minHeight: 240 }}>
+      <img src={photo} alt="Retail store" style={{ position: 'absolute', inset: 0, width: '100%', height: '100%', objectFit: 'cover' }} />
+      <div style={{ position: 'absolute', inset: 0, pointerEvents: 'none',
+        background: 'linear-gradient(180deg, rgba(9,14,26,0.2) 0%, rgba(9,14,26,0.45) 45%, rgba(9,14,26,0.85) 100%)' }} />
+      <div style={{ position: 'relative', padding: '20px 24px', display: 'flex', flexDirection: 'column',
+        justifyContent: 'space-between', minHeight: 240, boxSizing: 'border-box' }}>
+        <div style={{ pointerEvents: 'none' }}>
+          <div style={{ display: 'inline-flex', alignItems: 'center', gap: 6, background: 'rgba(11,18,32,0.55)',
+            border: '1px solid rgba(255,255,255,0.18)', borderRadius: 20, padding: '4px 10px', marginBottom: 10 }}>
+            <span style={{ width: 6, height: 6, borderRadius: '50%', background: '#4ade80', boxShadow: '0 0 6px #4ade80' }} />
+            <span style={{ fontSize: 10.5, fontWeight: 700, color: '#e6eaf2', letterSpacing: '0.05em' }}>LIVE STORE HEATMAP</span>
+          </div>
+          <div style={{ fontFamily: "'Space Grotesk', 'Inter', sans-serif", fontSize: 20, fontWeight: 700, color: '#ffffff' }}>Footfall & Checkout Analytics</div>
+        </div>
+
+        {zones.length > 0 && (
+          <div style={{
+            display: 'grid', gridTemplateColumns: `repeat(${Math.min(zones.length, 8)}, 1fr)`,
+            gap: 5, marginBottom: 12, maxWidth: 480,
+          }}>
+            {zones.slice(0, 16).map(z => <HeatCell key={z.asset_id} zone={z} maxFootfall={maxFootfall} />)}
+          </div>
+        )}
+
+        <div style={{ display: 'flex', gap: 10, flexWrap: 'wrap', pointerEvents: 'none' }}>
+          {stats.map(s => (
+            <div key={s.label} style={{
+              background: 'rgba(11,18,32,0.6)', backdropFilter: 'blur(4px)',
+              border: '1px solid rgba(255,255,255,0.16)', borderRadius: 10, padding: '8px 14px', minWidth: 92,
+            }}>
+              <div style={{ fontSize: 9.5, color: 'rgba(230,234,242,0.7)', textTransform: 'uppercase', letterSpacing: '0.06em', marginBottom: 3 }}>{s.label}</div>
+              <div style={{ fontFamily: 'monospace', fontSize: 17, fontWeight: 700, color: s.color || '#ffffff' }}>
+                {s.value}{s.unit && <span style={{ fontSize: 11, color: 'rgba(230,234,242,0.6)', marginLeft: 2 }}>{s.unit}</span>}
+              </div>
+            </div>
+          ))}
+        </div>
+      </div>
+    </div>
+  );
+}
 
 const MAX_HISTORY = 40;
 
@@ -291,7 +361,10 @@ export default function RetailDashboard() {
 
   const [selectedAsset, setSelectedAsset] = useState(null);
   const [history, setHistory] = useState([]);
+  const [theme, setTheme] = useState(() => localStorage.getItem('retail_theme') || 'dark');
   const prevRef = useRef({});
+
+  useEffect(() => { localStorage.setItem('retail_theme', theme); }, [theme]);
 
   const assetList = Object.values(assets);
   const zones = assetList.filter((a) =>
@@ -376,90 +449,62 @@ export default function RetailDashboard() {
 
   // ── Not configured guard ─────────────────────────────────────────────────────
   if (!industry.apiUrl) {
-    return (
-      <>
-      <div style={{ display:'flex', flexDirection:'column', alignItems:'center',
-        justifyContent:'center', minHeight:'70vh', gap:16, background:'#f8fafc',
-        fontFamily:'system-ui,sans-serif', padding:40 }}>
-        {/* Pulsing signal icon */}
-        <div style={{ position:'relative', width:72, height:72 }}>
-          <div style={{
-            position:'absolute', inset:0, borderRadius:'50%',
-            background:'rgba(37,125,240,0.08)',
-            animation:'ping 2s cubic-bezier(0,0,0.2,1) infinite',
-          }}/>
-          <div style={{
-            position:'relative', width:72, height:72, borderRadius:'50%',
-            background:'rgba(37,125,240,0.12)',
-            display:'flex', alignItems:'center', justifyContent:'center',
-          }}>
-            <svg width="32" height="32" viewBox="0 0 24 24" fill="none">
-              <path d="M3 12h2M19 12h2M12 3v2M12 19v2" stroke="#257df0" strokeWidth="2" strokeLinecap="round"/>
-              <circle cx="12" cy="12" r="3" fill="#257df0" opacity="0.7"/>
-              <path d="M5.6 5.6l1.4 1.4M16.9 16.9l1.4 1.4M5.6 18.4l1.4-1.4M16.9 7.1l1.4-1.4"
-                stroke="#257df0" strokeWidth="2" strokeLinecap="round" opacity="0.4"/>
-            </svg>
-          </div>
-        </div>
-
-        <div style={{ textAlign:'center' }}>
-          <div style={{ fontSize:17, fontWeight:700, color:'#1e293b', marginBottom:6 }}>
-            No Live Data Available
-          </div>
-          <div style={{ fontSize:13, color:'#94a3b8', maxWidth:280, lineHeight:1.6 }}>
-            This pipeline isn't connected yet. Deploy the simulator and processor on Condense to start seeing real-time data.
-          </div>
-        </div>
-
-        <div style={{ display:'flex', alignItems:'center', gap:8, marginTop:4 }}>
-          <span style={{ width:8, height:8, borderRadius:'50%', background:'#cbd5e1', display:'inline-block' }}/>
-          <span style={{ fontSize:12, color:'#94a3b8' }}>Waiting for connection</span>
-        </div>
-      </div>
-      <style>{`@keyframes ping { 75%,100% { transform:scale(2); opacity:0; } }`}</style>
-      </>
-    );
+    return <NotConfiguredGuard theme={theme} />;
   }
+  const t = THEME[theme];
   return (
     <div
       style={{
         padding: isMobile ? "12px 14px" : isTV ? "32px 40px" : "24px 28px",
         minHeight: "100vh",
-        background: "#f1f5f9",
-        color: "#1e293b",
+        background: t.pageBg,
+        color: t.text,
         fontFamily: "system-ui,sans-serif",
       }}
     >
-      <DashboardHeader
+      <ThemedDashboardHeader
         industryId="retail"
         title="Retail & E-commerce"
         subtitle={zones.length + " zones · " + checkouts.length + " checkouts"}
         status={status}
+        theme={theme}
+        onToggleTheme={() => setTheme(v => v === 'dark' ? 'light' : 'dark')}
         onRefresh={refresh}
+      />
+
+      <HeatmapHero
+        photo={retailHero}
+        zones={zones}
+        stats={[
+          { label: 'Total Footfall', value: totalFootfall, color: '#f9a8d4' },
+          { label: 'Avg Conversion', value: avgConversion, unit: '%', color: Number(avgConversion) >= 3 ? '#4ade80' : '#fbbf24' },
+          { label: 'Low Stock', value: lowStockAlerts, color: lowStockAlerts > 0 ? '#f87171' : '#4ade80' },
+          { label: 'Critical Alerts', value: critAlerts, color: critAlerts > 0 ? '#f87171' : '#4ade80' },
+        ]}
       />
 
       <div
         style={{ display: "flex", gap: 12, marginBottom: 24, flexWrap: "wrap" }}
       >
-        <KPICard label="Total Footfall" value={totalFootfall} color="#ec4899" />
-        <KPICard
+        <ThemedKPICard theme={theme} label="Total Footfall" value={totalFootfall} color="#ec4899" />
+        <ThemedKPICard theme={theme}
           label="Avg Conversion"
           value={avgConversion}
           unit="%"
           color={Number(avgConversion) >= 3 ? "#22c55e" : "#f59e0b"}
         />
-        <KPICard label="Zones Monitored" value={zones.length} color="#3b82f6" />
-        <KPICard
+        <ThemedKPICard theme={theme} label="Zones Monitored" value={zones.length} color="#3b82f6" />
+        <ThemedKPICard theme={theme}
           label="Checkout Lanes"
           value={checkouts.length}
           color="#8b5cf6"
         />
-        <KPICard
+        <ThemedKPICard theme={theme}
           label="Low Stock Alerts"
           value={lowStockAlerts}
           color={lowStockAlerts > 0 ? "#ef4444" : "#22c55e"}
         />
-        <KPICard label="Critical Alerts" value={critAlerts} color="#ef4444" />
+        <ThemedKPICard theme={theme} label="Critical Alerts" value={critAlerts} color="#ef4444" />
       </div>
 
       <div

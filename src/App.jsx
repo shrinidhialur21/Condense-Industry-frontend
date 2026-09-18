@@ -13,7 +13,10 @@ import {
   Lightning, Car, Wrench, AirplaneTilt, Factory,
   Truck, Bank, ShoppingCart, Hospital, ChartLineUp, Buildings,
   CaretLeft, CaretRight, Eye, EyeSlash, LockKey, User, SignOut, Heartbeat,
+  FlowArrow,
 } from '@phosphor-icons/react';
+import Landing from './components/Landing.jsx';
+import Architecture from './components/Architecture.jsx';
 
 // ── Hardcoded credentials ─────────────────────────────────────────────────────
 const VALID_USER = 'condense';
@@ -394,6 +397,14 @@ function getInitialId() {
   );
 }
 
+// 'landing' (catalog), 'architecture' (integration page), or 'dashboard' (an industry)
+function getInitialView() {
+  const raw = window.location.hash.replace(/^#\/?/, '').trim();
+  if (raw === 'architecture') return 'architecture';
+  if (VALID_IDS.has(raw)) return 'dashboard';
+  return 'landing';
+}
+
 // ── Coming Soon placeholder ───────────────────────────────────────────────────
 function ComingSoon({ industry }) {
   const IconComp = INDUSTRY_ICONS[industry.id];
@@ -424,41 +435,60 @@ function ComingSoon({ industry }) {
 export default function App() {
   const [authed,      setAuthed]      = useState(() => sessionStorage.getItem(SESSION_KEY) === '1');
   const [activeId,    setActiveId]    = useState(getInitialId);
-  const [sidebarOpen, setSidebarOpen] = useState(true);
+  const [view,        setView]        = useState(getInitialView);
+  const [sidebarOpen, setSidebarOpen] = useState(false);
   const [drawerOpen,  setDrawerOpen]  = useState(false);
   const { isMobile, isTablet, isTV } = useWindowSize();
 
   // ── ALL hooks must be called before any early return ──────────────────────
 
   // Sync hash + localStorage — only when logged in
-  // (guarded with authed so sign-out never writes #/energy to the URL)
+  // (guarded with authed so sign-out never writes a stale hash to the URL)
   useEffect(() => {
     if (!authed) return;
-    setHash(activeId);
-    localStorage.setItem('condense_active_industry', activeId);
-  }, [activeId, authed]);
+    if (view === 'architecture') {
+      window.history.replaceState(null, '', '#/architecture');
+    } else if (view === 'dashboard') {
+      setHash(activeId);
+      localStorage.setItem('condense_active_industry', activeId);
+    } else {
+      window.history.replaceState(null, '', window.location.pathname);
+    }
+  }, [activeId, view, authed]);
 
   // Browser back/forward — only active when logged in
   useEffect(() => {
     if (!authed) return;
     const onHashChange = () => {
+      const raw = window.location.hash.replace(/^#\/?/, '').trim();
+      if (raw === 'architecture') { setView('architecture'); return; }
       const id = getIdFromHash();
-      if (id) setActiveId(id);
+      if (id) { setActiveId(id); setView('dashboard'); return; }
+      setView('landing');
     };
     window.addEventListener('hashchange', onHashChange);
     return () => window.removeEventListener('hashchange', onHashChange);
   }, [authed]);
 
-  const navigate = useCallback((id) => setActiveId(id), []);
+  const navigate = useCallback((id) => { setActiveId(id); setView('dashboard'); }, []);
+  const goHome   = useCallback(() => setView('landing'), []);
+  const openArchitecture = useCallback(() => setView('architecture'), []);
 
   // ── Early return for login — after all hooks ──────────────────────────────
   if (!authed) return (
     <LoginScreen onLogin={() => {
-      // Always land on Energy after login
-      localStorage.removeItem('condense_active_industry');
-      setActiveId('energy');
+      // Respect a deep link (e.g. shared #/manufacturing url); otherwise land on the catalog.
+      const raw = window.location.hash.replace(/^#\/?/, '').trim();
       setAuthed(true);
-      // Hash will be set by the useEffect above once authed=true
+      if (raw === 'architecture') {
+        setView('architecture');
+      } else if (VALID_IDS.has(raw)) {
+        setActiveId(raw);
+        setView('dashboard');
+      } else {
+        localStorage.removeItem('condense_active_industry');
+        setView('landing');
+      }
     }} />
   );
 
@@ -470,11 +500,24 @@ export default function App() {
     localStorage.removeItem('condense_active_industry');
     window.history.replaceState(null, '', window.location.pathname);
     setAuthed(false);
+    setView('landing');
+  }
+
+  // ── Landing / catalog screen — shown before an industry is picked ─────────
+  if (view === 'landing') {
+    return (
+      <Landing
+        industries={INDUSTRY_LIST}
+        onSelect={navigate}
+        onOpenArchitecture={openArchitecture}
+        onLogout={signOut}
+      />
+    );
   }
 
   // ── Platform Health button (shared between sidebar and drawer) ─────────
   function PlatformHealthButton({ showLabels, onSelect }) {
-    const isActive = activeId === 'platform';
+    const isActive = view === 'dashboard' && activeId === 'platform';
     return (
       <button
         onClick={() => { navigate('platform'); onSelect?.(); }}
@@ -515,69 +558,104 @@ export default function App() {
     );
   }
 
-  // ── Industry nav list (shared between sidebar and drawer) ──────────────
-  function IndustryList({ showLabels, onSelect }) {
+  // ── Architecture nav entry (shared between sidebar and drawer) ─────────
+  function ArchitectureButton({ showLabels, onSelect }) {
+    const isActive = view === 'architecture';
+    return (
+      <button
+        onClick={() => { openArchitecture(); onSelect?.(); }}
+        title={!showLabels ? 'Architecture' : undefined}
+        style={{
+          width: '100%',
+          display: 'flex', alignItems: 'center', gap: 10,
+          padding: showLabels ? '10px 16px' : '10px 0',
+          justifyContent: showLabels ? 'flex-start' : 'center',
+          background: isActive ? 'rgba(37,125,240,0.15)' : 'transparent',
+          borderLeft:  isActive ? `3px solid ${CONDENSE_BLUE}` : '3px solid transparent',
+          borderRight: 'none', borderTop: 'none', borderBottom: 'none',
+          cursor: 'pointer',
+          transition: 'all 0.12s',
+        }}
+      >
+        <FlowArrow
+          size={showLabels ? 18 : 20}
+          weight={isActive ? 'fill' : 'regular'}
+          color={isActive ? CONDENSE_BLUE : 'rgba(255,255,255,0.45)'}
+          style={{ flexShrink: 0 }}
+        />
+        {showLabels && (
+          <div style={{ textAlign: 'left', minWidth: 0, flex: 1 }}>
+            <div style={{
+              fontSize: 13, fontWeight: isActive ? 600 : 400,
+              color: isActive ? '#ffffff' : 'rgba(255,255,255,0.6)',
+              whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis',
+            }}>
+              Architecture
+            </div>
+            <div style={{ fontSize: 9, color: 'rgba(255,255,255,0.35)', marginTop: 1 }}>
+              How it fits your stack
+            </div>
+          </div>
+        )}
+      </button>
+    );
+  }
+
+  // ── Back-to-catalog + current industry (replaces the full industry list once
+  // you're inside a dashboard — no need to see the whole catalog again). ──────
+  function CurrentContextPanel({ showLabels, onSelect }) {
+    const industry = view === 'dashboard' ? INDUSTRY_LIST.find(i => i.id === activeId) : null;
+    const IconComp = industry ? INDUSTRY_ICONS[industry.id] : null;
     return (
       <>
-        {INDUSTRY_LIST.map(ind => {
-          const isActive = activeId === ind.id;
-          const IconComp = INDUSTRY_ICONS[ind.id];
-          const isLive   = Boolean(ind.apiUrl);
-          return (
-            <button
-              key={ind.id}
-              onClick={() => { navigate(ind.id); onSelect?.(); }}
-              title={!showLabels ? ind.name : undefined}
-              style={{
-                width: '100%',
-                display: 'flex', alignItems: 'center', gap: 10,
-                padding: showLabels ? '10px 16px' : '10px 0',
-                justifyContent: showLabels ? 'flex-start' : 'center',
-                background: isActive ? 'rgba(37,125,240,0.15)' : 'transparent',
-                borderLeft:  isActive ? `3px solid ${CONDENSE_BLUE}` : '3px solid transparent',
-                borderRight: 'none', borderTop: 'none', borderBottom: 'none',
-                cursor: 'pointer',
-                transition: 'all 0.12s',
-              }}
-            >
-              {IconComp && (
-                <IconComp
-                  size={showLabels ? 18 : 20}
-                  weight={isActive ? 'fill' : 'regular'}
-                  color={isActive ? CONDENSE_BLUE : 'rgba(255,255,255,0.45)'}
-                  style={{ flexShrink: 0 }}
-                />
-              )}
-              {showLabels && (
-                <div style={{ textAlign: 'left', minWidth: 0, flex: 1 }}>
-                  <div style={{
-                    fontSize: 13, fontWeight: isActive ? 600 : 400,
-                    color: isActive ? '#ffffff' : 'rgba(255,255,255,0.6)',
-                    whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis',
-                  }}>
-                    {ind.shortName}
-                  </div>
-                  {isLive && (
-                    <div style={{ display: 'flex', alignItems: 'center', gap: 4, marginTop: 2 }}>
-                      <span style={{ width: 5, height: 5, borderRadius: '50%', background: '#4ade80', boxShadow: '0 0 5px #4ade80', display: 'inline-block' }}/>
-                      <span style={{ fontSize: 9, color: '#4ade80', textTransform: 'uppercase', letterSpacing: '0.07em' }}>live</span>
-                    </div>
-                  )}
-                </div>
-              )}
-            </button>
-          );
-        })}
+        <button
+          onClick={() => { goHome(); onSelect?.(); }}
+          title={!showLabels ? 'All Industries' : undefined}
+          style={{
+            width: '100%',
+            display: 'flex', alignItems: 'center', gap: 10,
+            padding: showLabels ? '10px 16px' : '10px 0',
+            justifyContent: showLabels ? 'flex-start' : 'center',
+            background: 'transparent', border: 'none', borderLeft: '3px solid transparent',
+            cursor: 'pointer',
+          }}
+        >
+          <CaretLeft size={showLabels ? 16 : 18} weight="bold" color="rgba(255,255,255,0.55)" style={{ flexShrink: 0 }} />
+          {showLabels && (
+            <span style={{ fontSize: 13, fontWeight: 500, color: 'rgba(255,255,255,0.7)' }}>All Industries</span>
+          )}
+        </button>
+
+        {industry && (
+          <div style={{
+            width: '100%',
+            display: 'flex', alignItems: 'center', gap: 10,
+            padding: showLabels ? '10px 16px' : '10px 0',
+            justifyContent: showLabels ? 'flex-start' : 'center',
+            background: 'rgba(37,125,240,0.15)',
+            borderLeft: `3px solid ${CONDENSE_BLUE}`,
+            marginTop: 2,
+          }}>
+            {IconComp && <IconComp size={showLabels ? 18 : 20} weight="fill" color={CONDENSE_BLUE} style={{ flexShrink: 0 }} />}
+            {showLabels && (
+              <span style={{ fontSize: 13, fontWeight: 600, color: '#ffffff', whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>
+                {industry.shortName}
+              </span>
+            )}
+          </div>
+        )}
       </>
     );
   }
 
   // ── Mobile layout: top bar + drawer ────────────────────────────────────
   if (isMobile) {
-    const activeInd = activeId === 'platform'
-      ? { name: 'Platform Health' }
-      : INDUSTRY_LIST.find(i => i.id === activeId);
-    const ActiveIcon = activeId === 'platform' ? Heartbeat : INDUSTRY_ICONS[activeId];
+    const activeInd = view === 'architecture'
+      ? { name: 'Architecture' }
+      : activeId === 'platform'
+        ? { name: 'Platform Health' }
+        : INDUSTRY_LIST.find(i => i.id === activeId);
+    const ActiveIcon = view === 'architecture' ? FlowArrow : activeId === 'platform' ? Heartbeat : INDUSTRY_ICONS[activeId];
     return (
       <div style={{ display: 'flex', flexDirection: 'column', height: '100vh', background: '#f1f5f9', fontFamily: "'Inter', system-ui, sans-serif", overflow: 'hidden' }}>
 
@@ -611,8 +689,10 @@ export default function App() {
             </span>
           </div>
 
-          {/* Logo */}
-          <img src="/Condense.png" alt="Condense" style={{ height: 18, width: 'auto', filter: 'invert(1)', mixBlendMode: 'screen', flexShrink: 0 }} />
+          {/* Logo — tap to return to the catalog */}
+          <button onClick={goHome} title="All industries" style={{ background: 'none', border: 'none', padding: 0, cursor: 'pointer', display: 'flex', flexShrink: 0 }}>
+            <img src="/Condense.png" alt="Condense" style={{ height: 18, width: 'auto', filter: 'invert(1)', mixBlendMode: 'screen' }} />
+          </button>
         </div>
 
         {/* Drawer overlay */}
@@ -632,10 +712,10 @@ export default function App() {
                 height: 56, padding: '0 14px', borderBottom: '1px solid rgba(255,255,255,0.07)',
                 display: 'flex', alignItems: 'center', justifyContent: 'space-between',
               }}>
-                <div style={{ display: 'flex', flexDirection: 'column', gap: 2 }}>
+                <button onClick={() => { goHome(); setDrawerOpen(false); }} title="All industries" style={{ background: 'none', border: 'none', padding: 0, cursor: 'pointer', display: 'flex', flexDirection: 'column', gap: 2, alignItems: 'flex-start' }}>
                   <img src="/Condense.png" alt="Condense" style={{ height: 20, width: 'auto', filter: 'invert(1)', mixBlendMode: 'screen' }} />
                   <span style={{ fontSize: 8, fontWeight: 600, color: 'rgba(255,255,255,0.28)', textTransform: 'uppercase', letterSpacing: '0.18em' }}>Industry Demo</span>
-                </div>
+                </button>
                 <button onClick={() => setDrawerOpen(false)} style={{
                   background: 'rgba(255,255,255,0.07)', border: '1px solid rgba(255,255,255,0.12)',
                   color: 'rgba(255,255,255,0.7)', cursor: 'pointer', width: 28, height: 28,
@@ -645,10 +725,11 @@ export default function App() {
                 </button>
               </div>
 
-              {/* Industry list */}
+              {/* Back to catalog + current context */}
               <div style={{ flex: 1, overflowY: 'auto', padding: '6px 0' }}>
-                <IndustryList showLabels={true} onSelect={() => setDrawerOpen(false)} />
+                <CurrentContextPanel showLabels={true} onSelect={() => setDrawerOpen(false)} />
                 <div style={{ borderTop: '1px solid rgba(255,255,255,0.06)', margin: '6px 0', paddingTop: 6 }}>
+                  <ArchitectureButton showLabels={true} onSelect={() => setDrawerOpen(false)} />
                   <div style={{ fontSize: 8, fontWeight: 700, color: 'rgba(255,255,255,0.22)',
                     textTransform: 'uppercase', letterSpacing: '0.15em', padding: '0 16px', marginBottom: 2 }}>
                     DevOps
@@ -678,7 +759,10 @@ export default function App() {
 
         {/* Main content */}
         <div style={{ flex: 1, overflowY: 'auto', overflowX: 'hidden' }}>
-          {ActiveDash ? <ActiveDash /> : <ComingSoon industry={activeIndustry} />}
+          {view === 'architecture'
+            ? <Architecture />
+            : ActiveDash ? <ActiveDash /> : <ComingSoon industry={activeIndustry} />
+          }
         </div>
 
         <style>{`
@@ -721,7 +805,15 @@ export default function App() {
           flexShrink: 0, gap: 6,
         }}>
           {showLabels && (
-            <div style={{ display: 'flex', flexDirection: 'column', justifyContent: 'center', minWidth: 0, flex: 1, gap: 2 }}>
+            <button
+              onClick={goHome}
+              title="All industries"
+              style={{
+                background: 'none', border: 'none', padding: 0, cursor: 'pointer',
+                display: 'flex', flexDirection: 'column', alignItems: 'flex-start',
+                justifyContent: 'center', minWidth: 0, flex: 1, gap: 2,
+              }}
+            >
               <div style={{ background: '#0c1a3a', borderRadius: 3, overflow: 'hidden', display: 'inline-flex' }}>
                 <img
                   src="/Condense.png"
@@ -739,7 +831,7 @@ export default function App() {
               }}>
                 Industry Demo
               </span>
-            </div>
+            </button>
           )}
 
           <button
@@ -763,9 +855,9 @@ export default function App() {
           </button>
         </div>
 
-        {/* ── Industry list ── */}
+        {/* ── Back to catalog + current context ── */}
         <div style={{ flex: 1, overflowY: 'auto', padding: '6px 0' }}>
-          <IndustryList showLabels={showLabels} />
+          <CurrentContextPanel showLabels={showLabels} />
         </div>
 
         {/* Footer */}
@@ -776,8 +868,9 @@ export default function App() {
           display: 'flex', flexDirection: 'column', gap: 8,
           alignItems: showLabels ? 'stretch' : 'center',
         }}>
-          {/* Platform Health nav entry */}
+          {/* Architecture + Platform Health nav entries */}
           <div style={{ borderTop: '1px solid rgba(255,255,255,0.06)', paddingTop: 6, marginTop: -2 }}>
+            <ArchitectureButton showLabels={showLabels} />
             {showLabels && (
               <div style={{ fontSize: 8, fontWeight: 700, color: 'rgba(255,255,255,0.22)',
                 textTransform: 'uppercase', letterSpacing: '0.15em', padding: '0 16px', marginBottom: 2 }}>
@@ -814,10 +907,12 @@ export default function App() {
       </div>
 
       {/* ══ Main content ══════════════════════════════════════════════════════ */}
-      <div style={{ flex: 1, overflowY: 'auto', overflowX: 'hidden', background: '#f1f5f9' }}>
-        {ActiveDash
-          ? <ActiveDash />
-          : <ComingSoon industry={activeIndustry} />
+      <div style={{ flex: 1, overflowY: 'auto', overflowX: 'hidden', background: view === 'architecture' ? '#0b1220' : '#f1f5f9' }}>
+        {view === 'architecture'
+          ? <Architecture />
+          : ActiveDash
+            ? <ActiveDash />
+            : <ComingSoon industry={activeIndustry} />
         }
       </div>
 

@@ -2,7 +2,7 @@
 // Live energy sector dashboard — consumes WebSocket from App 3 (Insights API).
 // Shows: fleet KPIs, per-asset cards, power trend chart, alert feed.
 
-import { useState, useMemo, useRef, useEffect } from 'react';
+import { useState, useMemo, useRef, useEffect, lazy, Suspense } from 'react';
 import {
   LineChart, Line, AreaChart, Area, BarChart, Bar,
   XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer, Legend
@@ -11,11 +11,60 @@ import { useCondenseWS }  from '../../hooks/useCondenseWS.js';
 import { INDUSTRIES }     from '../../config/industries.js';
 import { useWindowSize }  from '../../hooks/useWindowSize.js';
 import {
-  ConnectionStatus, KPICard, AlertFeed, StatusBadge, HealthGauge,
-  DashboardHeader, RefreshButton,
+  AlertFeed, StatusBadge, HealthGauge,
+  THEME, ThemedDashboardHeader, ThemedKPICard, NotConfiguredGuard,
 } from '../../components/shared.jsx';
+import energyHero from '../../assets/industries/energy.jpg';
+
+// Code-split — three.js/react-three-fiber only downloads when this dashboard mounts.
+const EnergyScene3D = lazy(() => import('./EnergyScene3D.jsx'));
 
 const MAX_HISTORY = 40; // data points kept in trend chart
+
+// Hero — real low-poly 3D wind & solar farm. Blade speed is driven by each
+// turbine's real rotor_rpm; solar glow by real irradiance_wm2. Falls back to
+// the real photo while the 3D bundle loads.
+function EnergyHero({ assets, stats }) {
+  return (
+    <div style={{ position: 'relative', borderRadius: 16, overflow: 'hidden', marginBottom: 20, minHeight: 240 }}>
+      <div style={{ position: 'absolute', inset: 0 }}>
+        <Suspense fallback={
+          <img src={energyHero} alt="Wind farm" style={{ width: '100%', height: '100%', objectFit: 'cover' }} />
+        }>
+          <EnergyScene3D assets={assets} />
+        </Suspense>
+      </div>
+      <div style={{
+        position: 'absolute', inset: 0, pointerEvents: 'none',
+        background: 'linear-gradient(180deg, rgba(9,14,26,0.05) 0%, rgba(9,14,26,0.1) 55%, rgba(9,14,26,0.65) 100%)',
+      }} />
+      <div style={{ position: 'relative', padding: '20px 24px', display: 'flex', flexDirection: 'column',
+        justifyContent: 'space-between', minHeight: 240, boxSizing: 'border-box', pointerEvents: 'none' }}>
+        <div>
+          <div style={{ display: 'inline-flex', alignItems: 'center', gap: 6, background: 'rgba(11,18,32,0.55)',
+            border: '1px solid rgba(255,255,255,0.18)', borderRadius: 20, padding: '4px 10px', marginBottom: 10 }}>
+            <span style={{ width: 6, height: 6, borderRadius: '50%', background: '#4ade80', boxShadow: '0 0 6px #4ade80' }} />
+            <span style={{ fontSize: 10.5, fontWeight: 700, color: '#e6eaf2', letterSpacing: '0.05em' }}>LIVE GENERATION</span>
+          </div>
+          <div style={{ fontFamily: "'Space Grotesk', 'Inter', sans-serif", fontSize: 20, fontWeight: 700, color: '#ffffff' }}>Wind & Solar Fleet</div>
+        </div>
+        <div style={{ display: 'flex', gap: 10, flexWrap: 'wrap' }}>
+          {stats.map(s => (
+            <div key={s.label} style={{
+              background: 'rgba(11,18,32,0.6)', backdropFilter: 'blur(4px)',
+              border: '1px solid rgba(255,255,255,0.16)', borderRadius: 10, padding: '8px 14px', minWidth: 92,
+            }}>
+              <div style={{ fontSize: 9.5, color: 'rgba(230,234,242,0.7)', textTransform: 'uppercase', letterSpacing: '0.06em', marginBottom: 3 }}>{s.label}</div>
+              <div style={{ fontFamily: 'monospace', fontSize: 17, fontWeight: 700, color: s.color || '#ffffff' }}>
+                {s.value}{s.unit && <span style={{ fontSize: 11, color: 'rgba(230,234,242,0.6)', marginLeft: 2 }}>{s.unit}</span>}
+              </div>
+            </div>
+          ))}
+        </div>
+      </div>
+    </div>
+  );
+}
 
 // ── Asset type icons / labels ─────────────────────────────────
 const ASSET_META = {
@@ -207,7 +256,10 @@ export default function EnergyDashboard() {
 
   const [selectedAsset, setSelectedAsset] = useState(null);
   const [powerHistory,  setPowerHistory]  = useState([]); // [{time, ...asset powers}]
+  const [theme, setTheme] = useState(() => localStorage.getItem('energy_theme') || 'dark');
   const prevAssetsRef = useRef({});
+
+  useEffect(() => { localStorage.setItem('energy_theme', theme); }, [theme]);
 
   // Build rolling power history from incoming asset updates
   useEffect(() => {
@@ -265,72 +317,43 @@ export default function EnergyDashboard() {
 
   // ── Not configured guard ─────────────────────────────────────────────────────
   if (!industry.apiUrl) {
-    return (
-      <>
-      <div style={{ display:'flex', flexDirection:'column', alignItems:'center',
-        justifyContent:'center', minHeight:'70vh', gap:16, background:'#f8fafc',
-        fontFamily:'system-ui,sans-serif', padding:40 }}>
-        {/* Pulsing signal icon */}
-        <div style={{ position:'relative', width:72, height:72 }}>
-          <div style={{
-            position:'absolute', inset:0, borderRadius:'50%',
-            background:'rgba(37,125,240,0.08)',
-            animation:'ping 2s cubic-bezier(0,0,0.2,1) infinite',
-          }}/>
-          <div style={{
-            position:'relative', width:72, height:72, borderRadius:'50%',
-            background:'rgba(37,125,240,0.12)',
-            display:'flex', alignItems:'center', justifyContent:'center',
-          }}>
-            <svg width="32" height="32" viewBox="0 0 24 24" fill="none">
-              <path d="M3 12h2M19 12h2M12 3v2M12 19v2" stroke="#257df0" strokeWidth="2" strokeLinecap="round"/>
-              <circle cx="12" cy="12" r="3" fill="#257df0" opacity="0.7"/>
-              <path d="M5.6 5.6l1.4 1.4M16.9 16.9l1.4 1.4M5.6 18.4l1.4-1.4M16.9 7.1l1.4-1.4"
-                stroke="#257df0" strokeWidth="2" strokeLinecap="round" opacity="0.4"/>
-            </svg>
-          </div>
-        </div>
-
-        <div style={{ textAlign:'center' }}>
-          <div style={{ fontSize:17, fontWeight:700, color:'#1e293b', marginBottom:6 }}>
-            No Live Data Available
-          </div>
-          <div style={{ fontSize:13, color:'#94a3b8', maxWidth:280, lineHeight:1.6 }}>
-            This pipeline isn't connected yet. Deploy the simulator and processor on Condense to start seeing real-time data.
-          </div>
-        </div>
-
-        <div style={{ display:'flex', alignItems:'center', gap:8, marginTop:4 }}>
-          <span style={{ width:8, height:8, borderRadius:'50%', background:'#cbd5e1', display:'inline-block' }}/>
-          <span style={{ fontSize:12, color:'#94a3b8' }}>Waiting for connection</span>
-        </div>
-      </div>
-      <style>{`@keyframes ping { 75%,100% { transform:scale(2); opacity:0; } }`}</style>
-      </>
-    );
+    return <NotConfiguredGuard theme={theme} />;
   }
+  const t = THEME[theme];
   return (
     <div style={{ padding: isMobile ? '12px 14px' : isTV ? '32px 40px' : '24px 28px', minHeight:'100vh',
-      background:'#f1f5f9', color:'#1e293b', fontFamily:'system-ui, sans-serif' }}>
+      background:t.pageBg, color:t.text, fontFamily:'system-ui, sans-serif' }}>
 
       {/* Header */}
-      <DashboardHeader
+      <ThemedDashboardHeader
         industryId="energy"
         title="Renewable Energy & Utilities"
         subtitle={`Assets: ${assetList.length} · Alerts: ${alerts.length}`}
         status={status}
         onRefresh={refresh}
+        theme={theme}
+        onToggleTheme={() => setTheme(v => v === 'dark' ? 'light' : 'dark')}
+      />
+
+      <EnergyHero
+        assets={assetList}
+        stats={[
+          { label: 'Total Power', value: totalPower, unit: 'kW', color: '#4ade80' },
+          { label: 'Assets Online', value: assetList.length, color: '#93c5fd' },
+          { label: 'Avg Health', value: avgHealth, unit: '/100', color: avgHealth >= 70 ? '#4ade80' : avgHealth >= 40 ? '#fbbf24' : '#f87171' },
+          { label: 'Critical Alerts', value: criticalAlerts.length, color: criticalAlerts.length > 0 ? '#f87171' : '#4ade80' },
+        ]}
       />
 
       {/* Fleet KPIs */}
       <div style={{ display:'flex', gap:12, marginBottom:24, flexWrap:'wrap' }}>
-        <KPICard label="Total Power" value={totalPower} unit="kW" color="#22c55e" />
-        <KPICard label="Assets Online" value={assetList.length} color="#3b82f6" />
-        <KPICard label="Avg Health Score" value={avgHealth} unit="/100"
+        <ThemedKPICard theme={theme} label="Total Power" value={totalPower} unit="kW" color="#22c55e" />
+        <ThemedKPICard theme={theme} label="Assets Online" value={assetList.length} color="#3b82f6" />
+        <ThemedKPICard theme={theme} label="Avg Health Score" value={avgHealth} unit="/100"
           color={avgHealth >= 70 ? '#22c55e' : avgHealth >= 40 ? '#f59e0b' : '#ef4444'} />
-        <KPICard label="Critical Alerts" value={criticalAlerts.length} color="#ef4444" />
-        <KPICard label="Assets w/ Alerts" value={assetsWithAlerts} color="#f59e0b" />
-        <KPICard label="Total Events" value={stats?.total_messages ?? '—'} color="#64748b"
+        <ThemedKPICard theme={theme} label="Critical Alerts" value={criticalAlerts.length} color="#ef4444" />
+        <ThemedKPICard theme={theme} label="Assets w/ Alerts" value={assetsWithAlerts} color="#f59e0b" />
+        <ThemedKPICard theme={theme} label="Total Events" value={stats?.total_messages ?? '—'} color="#64748b"
           sub={stats?.last_updated ? `Last: ${new Date(stats.last_updated).toLocaleTimeString()}` : null} />
       </div>
 

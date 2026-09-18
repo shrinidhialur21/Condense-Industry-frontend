@@ -1,7 +1,7 @@
 // src/industries/manufacturing/ManufacturingDashboard.jsx
 // Smart Manufacturing / IIoT — machines, OEE, vibration, predictive maintenance.
 
-import { useState, useEffect, useRef } from 'react';
+import { useState, useEffect, useRef, lazy, Suspense } from 'react';
 import {
   AreaChart, Area, BarChart, Bar, RadarChart, Radar, PolarGrid,
   PolarAngleAxis, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer, Legend,
@@ -11,11 +11,59 @@ import { useCondenseWS } from '../../hooks/useCondenseWS.js';
 import { INDUSTRIES }    from '../../config/industries.js';
 import { useWindowSize } from '../../hooks/useWindowSize.js';
 import {
-  ConnectionStatus, KPICard, AlertFeed, StatusBadge, HealthGauge,
-  DashboardHeader, RefreshButton, InfoTooltip,
+  ConnectionStatus, AlertFeed, StatusBadge, HealthGauge, RefreshButton, InfoTooltip,
+  THEME, ThemeToggle, ThemedKPICard,
 } from '../../components/shared.jsx';
+import manufacturingHero from '../../assets/industries/manufacturing.jpg';
+
+// Code-split — three.js/react-three-fiber only downloads when this dashboard mounts.
+const FactoryScene3D = lazy(() => import('./FactoryScene3D.jsx'));
 
 const MAX_HISTORY = 40;
+
+// Hero — real low-poly 3D shop floor (shape per asset_type, color/motion per real
+// status) + a handful of live fleet numbers overlaid. No fabricated positions or
+// values. Falls back to the real factory photo while the 3D bundle loads.
+function FactoryHero({ theme, vertical, stats, assets }) {
+  return (
+    <div style={{ position: 'relative', borderRadius: 16, overflow: 'hidden', marginBottom: 20, minHeight: 240 }}>
+      <div style={{ position: 'absolute', inset: 0 }}>
+        <Suspense fallback={
+          <img src={manufacturingHero} alt="Factory floor" style={{ width: '100%', height: '100%', objectFit: 'cover' }} />
+        }>
+          <FactoryScene3D assets={assets} />
+        </Suspense>
+      </div>
+      <div style={{
+        position: 'absolute', inset: 0, pointerEvents: 'none',
+        background: 'linear-gradient(180deg, rgba(9,14,26,0.05) 0%, rgba(9,14,26,0.1) 55%, rgba(9,14,26,0.65) 100%)',
+      }} />
+      <div style={{ position: 'relative', padding: '22px 26px', display: 'flex', flexDirection: 'column', justifyContent: 'space-between', minHeight: 240, boxSizing: 'border-box', pointerEvents: 'none' }}>
+        <div>
+          <div style={{ display: 'inline-flex', alignItems: 'center', gap: 6, background: 'rgba(11,18,32,0.55)', border: '1px solid rgba(255,255,255,0.18)', borderRadius: 20, padding: '4px 10px', marginBottom: 10 }}>
+            <span style={{ width: 6, height: 6, borderRadius: '50%', background: '#4ade80', boxShadow: '0 0 6px #4ade80' }} />
+            <span style={{ fontSize: 10.5, fontWeight: 700, color: '#e6eaf2', letterSpacing: '0.05em' }}>LIVE FACTORY FLOOR</span>
+          </div>
+          <div style={{ fontFamily: "'Space Grotesk', 'Inter', sans-serif", fontSize: 20, fontWeight: 700, color: '#ffffff' }}>{vertical}</div>
+        </div>
+        <div style={{ display: 'flex', gap: 10, flexWrap: 'wrap' }}>
+          {stats.map(s => (
+            <div key={s.label} style={{
+              background: 'rgba(11,18,32,0.6)', backdropFilter: 'blur(4px)',
+              border: '1px solid rgba(255,255,255,0.16)', borderRadius: 10,
+              padding: '8px 14px', minWidth: 92,
+            }}>
+              <div style={{ fontSize: 9.5, color: 'rgba(230,234,242,0.7)', textTransform: 'uppercase', letterSpacing: '0.06em', marginBottom: 3 }}>{s.label}</div>
+              <div style={{ fontFamily: 'monospace', fontSize: 17, fontWeight: 700, color: s.color || '#ffffff' }}>
+                {s.value}{s.unit && <span style={{ fontSize: 11, color: 'rgba(230,234,242,0.6)', marginLeft: 2 }}>{s.unit}</span>}
+              </div>
+            </div>
+          ))}
+        </div>
+      </div>
+    </div>
+  );
+}
 
 const ASSET_META = {
   machine:          { icon: '⚙️',  label: 'CNC Machine' },
@@ -66,7 +114,8 @@ const MFG_VERTICALS = {
   },
 };
 
-function VerticalSelector({ value, onChange, counts }) {
+function VerticalSelector({ value, onChange, counts, theme }) {
+  const t = THEME[theme];
   return (
     <div style={{ display:'flex', gap:8, marginBottom:20, flexWrap:'wrap' }}>
       {Object.entries(MFG_VERTICALS).map(([key, v]) => {
@@ -76,16 +125,16 @@ function VerticalSelector({ value, onChange, counts }) {
           <button key={key} onClick={() => onChange(key)} style={{
             display:'flex', alignItems:'center', gap:8,
             padding:'10px 16px', borderRadius:10, cursor:'pointer',
-            border: `1px solid ${active ? '#8b5cf6' : '#e2e8f0'}`,
-            background: active ? 'rgba(139,92,246,0.08)' : '#ffffff',
-            color: active ? '#6d28d9' : '#475569',
+            border: `1px solid ${active ? '#8b5cf6' : t.cardBorder}`,
+            background: active ? 'rgba(139,92,246,0.08)' : t.cardBg,
+            color: active ? '#a78bfa' : t.textDim,
             fontFamily:'system-ui,sans-serif', fontSize:13, fontWeight:600,
           }}>
             <span style={{ fontSize:16 }}>{v.icon}</span>
             <span>{v.label}</span>
             <span style={{
-              fontSize:11, fontWeight:700, color: active ? '#6d28d9' : '#94a3b8',
-              background: active ? 'rgba(139,92,246,0.15)' : '#f1f5f9',
+              fontSize:11, fontWeight:700, color: active ? '#a78bfa' : t.textFaint,
+              background: active ? 'rgba(139,92,246,0.15)' : t.pageBg,
               borderRadius:999, padding:'1px 7px',
             }}>{count}</span>
           </button>
@@ -527,7 +576,10 @@ export default function ManufacturingDashboard() {
   const [selectedAsset, setSelectedAsset] = useState(null);
   const [history, setHistory]             = useState([]);
   const [vertical, setVertical]           = useState(() => localStorage.getItem('mfg_vertical') || 'discrete');
+  const [theme, setTheme]                 = useState(() => localStorage.getItem('mfg_theme') || 'dark');
   const prevRef = useRef({});
+
+  useEffect(() => { localStorage.setItem('mfg_theme', theme); }, [theme]);
 
   useEffect(() => { localStorage.setItem('mfg_vertical', vertical); }, [vertical]);
 
@@ -638,11 +690,15 @@ export default function ManufacturingDashboard() {
 
   // ── Not configured guard ─────────────────────────────────────────────────────
   if (!industry.apiUrl) {
+    const t = THEME[theme];
     return (
       <>
       <div style={{ display:'flex', flexDirection:'column', alignItems:'center',
-        justifyContent:'center', minHeight:'70vh', gap:16, background:'#f8fafc',
-        fontFamily:'system-ui,sans-serif', padding:40 }}>
+        justifyContent:'center', minHeight:'100vh', gap:16, background:t.pageBg,
+        fontFamily:'system-ui,sans-serif', padding:40, position:'relative' }}>
+        <div style={{ position:'absolute', top:20, right:20 }}>
+          <ThemeToggle theme={theme} onToggle={() => setTheme(v => v === 'dark' ? 'light' : 'dark')} />
+        </div>
         {/* Pulsing signal icon */}
         <div style={{ position:'relative', width:72, height:72 }}>
           <div style={{
@@ -665,78 +721,111 @@ export default function ManufacturingDashboard() {
         </div>
 
         <div style={{ textAlign:'center' }}>
-          <div style={{ fontSize:17, fontWeight:700, color:'#1e293b', marginBottom:6 }}>
+          <div style={{ fontSize:17, fontWeight:700, color:t.text, marginBottom:6 }}>
             No Live Data Available
           </div>
-          <div style={{ fontSize:13, color:'#94a3b8', maxWidth:280, lineHeight:1.6 }}>
+          <div style={{ fontSize:13, color:t.textDim, maxWidth:280, lineHeight:1.6 }}>
             This pipeline isn't connected yet. Deploy the simulator and processor on Condense to start seeing real-time data.
           </div>
         </div>
 
         <div style={{ display:'flex', alignItems:'center', gap:8, marginTop:4 }}>
-          <span style={{ width:8, height:8, borderRadius:'50%', background:'#cbd5e1', display:'inline-block' }}/>
-          <span style={{ fontSize:12, color:'#94a3b8' }}>Waiting for connection</span>
+          <span style={{ width:8, height:8, borderRadius:'50%', background:t.textFaint, display:'inline-block' }}/>
+          <span style={{ fontSize:12, color:t.textDim }}>Waiting for connection</span>
         </div>
       </div>
       <style>{`@keyframes ping { 75%,100% { transform:scale(2); opacity:0; } }`}</style>
       </>
     );
   }
-  return (
-    <div style={{ padding: isMobile ? '12px 14px' : isTV ? '32px 40px' : '24px 28px', minHeight:'100vh', background:'#f1f5f9', color:'#1e293b', fontFamily:'system-ui,sans-serif' }}>
-      <DashboardHeader
-        industryId="manufacturing"
-        title="Smart Manufacturing / IIoT"
-        subtitle={isVibration
-          ? `Vibration Analysis · ${assetList.length} rotary assets · ${bearingFaultCount} bearing faults · ${zoneDCount} in Zone D`
-          : isCement
-          ? `Cement Manufacturing · ${assetList.length} assets · ${kilns.length} kiln lines · ${mills.length} mills`
-          : `Discrete Manufacturing · ${assetList.length} assets · ${machines.length} machines tracked`}
-        status={status}
-        onRefresh={refresh}
-      />
 
-      <VerticalSelector value={vertical} onChange={setVertical} counts={verticalCounts} />
+  const t = THEME[theme];
+  const heroStats = isVibration
+    ? [
+        { label: 'Avg RMS Velocity', value: avgRMS ?? '—', unit: 'mm/s', color: zoneDCount > 0 ? '#f87171' : '#4ade80' },
+        { label: 'Zone D Critical', value: zoneDCount, color: zoneDCount > 0 ? '#f87171' : '#4ade80' },
+        { label: 'Faulted', value: faulted, color: faulted > 0 ? '#f87171' : '#4ade80' },
+        { label: 'Critical Alerts', value: critAlerts, color: critAlerts > 0 ? '#f87171' : '#4ade80' },
+      ]
+    : isCement
+    ? [
+        { label: 'Clinker Output', value: totalClinkerTph.toFixed(1), unit: 't/h', color: '#c4b5fd' },
+        { label: 'Cement Output', value: totalCementTph.toFixed(1), unit: 't/h', color: '#93c5fd' },
+        { label: 'Faulted', value: faulted, color: faulted > 0 ? '#f87171' : '#4ade80' },
+        { label: 'Critical Alerts', value: critAlerts, color: critAlerts > 0 ? '#f87171' : '#4ade80' },
+      ]
+    : [
+        { label: 'Fleet Avg OEE', value: avgOEE, unit: '%', color: Number(avgOEE) >= 85 ? '#4ade80' : '#fbbf24' },
+        { label: 'Running', value: running, color: '#93c5fd' },
+        { label: 'Faulted', value: faulted, color: faulted > 0 ? '#f87171' : '#4ade80' },
+        { label: 'Critical Alerts', value: critAlerts, color: critAlerts > 0 ? '#f87171' : '#4ade80' },
+      ];
+
+  return (
+    <div style={{ padding: isMobile ? '12px 14px' : isTV ? '32px 40px' : '24px 28px', minHeight:'100vh', background:t.pageBg, color:t.text, fontFamily:'system-ui,sans-serif' }}>
+      <div style={{ display:'flex', justifyContent:'space-between', alignItems:'flex-start', flexWrap:'wrap', gap:12, marginBottom:20 }}>
+        <div>
+          <div style={{ fontSize: isMobile ? 15 : isTV ? 22 : 18, fontWeight:700, color:t.text, lineHeight:1.2 }}>
+            Smart Manufacturing / IIoT
+          </div>
+          <div style={{ fontSize:12, color:t.textDim, marginTop:4 }}>
+            {isVibration
+              ? `Vibration Analysis · ${assetList.length} rotary assets · ${bearingFaultCount} bearing faults · ${zoneDCount} in Zone D`
+              : isCement
+              ? `Cement Manufacturing · ${assetList.length} assets · ${kilns.length} kiln lines · ${mills.length} mills`
+              : `Discrete Manufacturing · ${assetList.length} assets · ${machines.length} machines tracked`}
+          </div>
+        </div>
+        <div style={{ display:'flex', alignItems:'center', gap:10 }}>
+          <ConnectionStatus status={status} />
+          <RefreshButton onClick={refresh} />
+          <ThemeToggle theme={theme} onToggle={() => setTheme(v => v === 'dark' ? 'light' : 'dark')} />
+        </div>
+      </div>
+
+      <FactoryHero theme={theme} vertical={MFG_VERTICALS[vertical].label} stats={heroStats} assets={assetList} />
+
+      <VerticalSelector value={vertical} onChange={setVertical} counts={verticalCounts} theme={theme} />
 
       {isVibration ? (
         <div style={{ display:'flex', gap:12, marginBottom:24, flexWrap:'wrap' }}>
-          <KPICard label="Avg RMS Velocity" value={avgRMS ?? '—'} unit="mm/s" color={zoneDCount > 0 ? '#dc2626' : '#16a34a'} sub="ISO 10816-3" />
-          <KPICard label="Zone D (Critical)" value={zoneDCount} color={zoneDCount > 0 ? '#dc2626' : '#16a34a'} sub="Unacceptable vibration" />
-          <KPICard label="Zone C (Warning)" value={zoneCCount} color={zoneCCount > 0 ? '#d97706' : '#16a34a'} sub="Plan maintenance" />
-          <KPICard label="Bearing Faults"   value={bearingFaultCount} color={bearingFaultCount > 0 ? '#dc2626' : '#16a34a'} sub="BPFO/BPFI/BSF match" />
-          <KPICard label="Avg PdM Score"    value={avgPdMVib ?? '—'} unit="/ 100" color="#7c3aed" sub="Fleet predictive maintenance" />
-          <KPICard label="Faulted"          value={faulted} color={faulted > 0 ? '#dc2626' : '#16a34a'} sub="Assets in fault" />
-          <KPICard label="Critical Alerts"  value={critAlerts} color={critAlerts > 0 ? '#dc2626' : '#64748b'} />
+          <ThemedKPICard theme={theme} label="Avg RMS Velocity" value={avgRMS ?? '—'} unit="mm/s" color={zoneDCount > 0 ? '#dc2626' : '#16a34a'} sub="ISO 10816-3" />
+          <ThemedKPICard theme={theme} label="Zone D (Critical)" value={zoneDCount} color={zoneDCount > 0 ? '#dc2626' : '#16a34a'} sub="Unacceptable vibration" />
+          <ThemedKPICard theme={theme} label="Zone C (Warning)" value={zoneCCount} color={zoneCCount > 0 ? '#d97706' : '#16a34a'} sub="Plan maintenance" />
+          <ThemedKPICard theme={theme} label="Bearing Faults"   value={bearingFaultCount} color={bearingFaultCount > 0 ? '#dc2626' : '#16a34a'} sub="BPFO/BPFI/BSF match" />
+          <ThemedKPICard theme={theme} label="Avg PdM Score"    value={avgPdMVib ?? '—'} unit="/ 100" color="#7c3aed" sub="Fleet predictive maintenance" />
+          <ThemedKPICard theme={theme} label="Faulted"          value={faulted} color={faulted > 0 ? '#dc2626' : '#16a34a'} sub="Assets in fault" />
+          <ThemedKPICard theme={theme} label="Critical Alerts"  value={critAlerts} color={critAlerts > 0 ? '#dc2626' : '#64748b'} />
         </div>
       ) : isCement ? (
         <div style={{ display:'flex', gap:12, marginBottom:24, flexWrap:'wrap' }}>
-          <KPICard label="Clinker Output"   value={totalClinkerTph.toFixed(1)} unit="t/h" color="#7c3aed" sub={`${kilns.length} kiln lines`} />
-          <KPICard label="Cement Output"    value={totalCementTph.toFixed(1)}  unit="t/h" color="#0284c7" sub={`${mills.length} mills`} />
-          <KPICard label="Avg SHC"          value={avgSHC ?? '—'} unit="kcal/kg" color={avgSHC && avgSHC > 750 ? '#d97706' : '#16a34a'} sub="Target: 730" />
-          <KPICard label="Avg TSR"          value={avgTSR ?? '—'} unit="%" color="#16a34a" sub="Alt-fuel substitution" />
-          <KPICard label="Avg Specific Power" value={avgSPC ?? '—'} unit="kWh/t" color="#7c3aed" sub="Finish mill" />
-          <KPICard label="Faulted"          value={faulted} color={faulted > 0 ? '#dc2626' : '#16a34a'} sub="Lines in fault" />
-          <KPICard label="Critical Alerts"  value={critAlerts} color={critAlerts > 0 ? '#dc2626' : '#64748b'} />
+          <ThemedKPICard theme={theme} label="Clinker Output"   value={totalClinkerTph.toFixed(1)} unit="t/h" color="#7c3aed" sub={`${kilns.length} kiln lines`} />
+          <ThemedKPICard theme={theme} label="Cement Output"    value={totalCementTph.toFixed(1)}  unit="t/h" color="#0284c7" sub={`${mills.length} mills`} />
+          <ThemedKPICard theme={theme} label="Avg SHC"          value={avgSHC ?? '—'} unit="kcal/kg" color={avgSHC && avgSHC > 750 ? '#d97706' : '#16a34a'} sub="Target: 730" />
+          <ThemedKPICard theme={theme} label="Avg TSR"          value={avgTSR ?? '—'} unit="%" color="#16a34a" sub="Alt-fuel substitution" />
+          <ThemedKPICard theme={theme} label="Avg Specific Power" value={avgSPC ?? '—'} unit="kWh/t" color="#7c3aed" sub="Finish mill" />
+          <ThemedKPICard theme={theme} label="Faulted"          value={faulted} color={faulted > 0 ? '#dc2626' : '#16a34a'} sub="Lines in fault" />
+          <ThemedKPICard theme={theme} label="Critical Alerts"  value={critAlerts} color={critAlerts > 0 ? '#dc2626' : '#64748b'} />
         </div>
       ) : (
         <div style={{ display:'flex', gap:12, marginBottom:24, flexWrap:'wrap' }}>
-          <KPICard label="Fleet Avg OEE"    value={avgOEE}      unit="%"   color={Number(avgOEE) >= 85 ? '#16a34a' : '#d97706'} sub="Target: 85%" />
-          <KPICard label="Running"          value={running}                color="#0284c7" sub={`of ${assetList.length} assets`} />
-          <KPICard label="Faulted"          value={faulted}                color={faulted > 0 ? '#dc2626' : '#16a34a'} sub="Machines in fault" />
-          <KPICard label="Avg MTBF"         value={avgMTBF ?? '—'}  unit="h"  color="#7c3aed" sub="Mean Time To Failure" />
-          <KPICard label="Avg MTTR"         value={avgMTTR ?? '—'}  unit="h"  color="#0891b2" sub="Mean Time To Repair" />
-          <KPICard label="PdM High Risk"    value={highRisk}               color={highRisk > 0 ? '#dc2626' : '#16a34a'} sub="Machines at risk" />
-          <KPICard label="Critical Alerts"  value={critAlerts}             color={critAlerts > 0 ? '#dc2626' : '#64748b'} />
+          <ThemedKPICard theme={theme} label="Fleet Avg OEE"    value={avgOEE}      unit="%"   color={Number(avgOEE) >= 85 ? '#16a34a' : '#d97706'} sub="Target: 85%" />
+          <ThemedKPICard theme={theme} label="Running"          value={running}                color="#0284c7" sub={`of ${assetList.length} assets`} />
+          <ThemedKPICard theme={theme} label="Faulted"          value={faulted}                color={faulted > 0 ? '#dc2626' : '#16a34a'} sub="Machines in fault" />
+          <ThemedKPICard theme={theme} label="Avg MTBF"         value={avgMTBF ?? '—'}  unit="h"  color="#7c3aed" sub="Mean Time To Failure" />
+          <ThemedKPICard theme={theme} label="Avg MTTR"         value={avgMTTR ?? '—'}  unit="h"  color="#0891b2" sub="Mean Time To Repair" />
+          <ThemedKPICard theme={theme} label="PdM High Risk"    value={highRisk}               color={highRisk > 0 ? '#dc2626' : '#16a34a'} sub="Machines at risk" />
+          <ThemedKPICard theme={theme} label="Critical Alerts"  value={critAlerts}             color={critAlerts > 0 ? '#dc2626' : '#64748b'} />
         </div>
       )}
 
       <div style={{ display:'grid', gridTemplateColumns: isMobile || isTablet ? '1fr' : '280px 1fr', gap:20, marginBottom:20 }}>
         <div style={{ display:'flex', flexDirection:'column', gap:8 }}>
-          <div style={{ fontSize:12, fontWeight:600, color:'#64748b', textTransform:'uppercase',
+          <div style={{ fontSize:12, fontWeight:600, color:t.textDim, textTransform:'uppercase',
             letterSpacing:'0.06em', marginBottom:4 }}>{isVibration ? 'Rotary Equipment' : isCement ? 'Cement Plant' : 'Shop Floor'} ({assetList.length})</div>
           {assetList.length === 0 ? (
-            <div style={{ textAlign:'center', padding:40, color:'#334155', fontSize:13,
-              border:'1px dashed #cbd5e1', borderRadius:10 }}>
+            <div style={{ textAlign:'center', padding:40, color:t.textDim, fontSize:13,
+              border:`1px dashed ${t.cardBorder}`, borderRadius:10 }}>
               {status === 'connecting' ? 'Connecting…' : 'No assets. Start the simulator.'}
             </div>
           ) : (

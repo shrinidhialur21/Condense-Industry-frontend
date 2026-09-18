@@ -7,6 +7,20 @@
 //
 // ready   — true means the dashboard component exists in /src/industries/
 //           The dashboard shows "Connecting…" if apiUrl is not set.
+//
+// image   — hero photo used on the landing page catalog card.
+
+import energyImg        from '../assets/industries/energy.jpg';
+import evImg             from '../assets/industries/ev.jpg';
+import automotiveImg     from '../assets/industries/automotive.jpg';
+import aviationImg       from '../assets/industries/aviation.jpg';
+import manufacturingImg  from '../assets/industries/manufacturing.jpg';
+import logisticsImg      from '../assets/industries/logistics.jpg';
+import bfsiImg           from '../assets/industries/bfsi.jpg';
+import retailImg         from '../assets/industries/retail.jpg';
+import healthcareImg     from '../assets/industries/healthcare.jpg';
+import stockexchangeImg  from '../assets/industries/stockexchange.jpg';
+import travelImg         from '../assets/industries/travel.jpg';
 
 export const INDUSTRIES = {
 
@@ -18,6 +32,7 @@ export const INDUSTRIES = {
     icon:        '⚡',
     color:       '#22c55e',
     colorMuted:  '#bbf7d0',
+    image:       energyImg,
     apiUrl:      import.meta.env.VITE_ENERGY_API_URL || '',
     ready:       true,
     assetTypes:  ['wind_turbine', 'solar_farm', 'scada_sensor', 'smart_meter'],
@@ -31,6 +46,7 @@ export const INDUSTRIES = {
     icon:        '🚗',
     color:       '#3b82f6',
     colorMuted:  '#bfdbfe',
+    image:       evImg,
     apiUrl:      import.meta.env.VITE_EV_API_URL || '',
     ready:       true,
     assetTypes:  ['ev', 'charging_station'],
@@ -44,6 +60,7 @@ export const INDUSTRIES = {
     icon:        '🔧',
     color:       '#f59e0b',
     colorMuted:  '#fde68a',
+    image:       automotiveImg,
     apiUrl:      import.meta.env.VITE_AUTO_API_URL || '',
     ready:       true,
     assetTypes:  ['vehicle', 'truck'],
@@ -57,6 +74,7 @@ export const INDUSTRIES = {
     icon:        '✈️',
     color:       '#06b6d4',
     colorMuted:  '#a5f3fc',
+    image:       aviationImg,
     apiUrl:      import.meta.env.VITE_AVIATION_API_URL || '',
     ready:       true,
     assetTypes:  ['flight', 'gate', 'runway', 'baggage'],
@@ -70,6 +88,7 @@ export const INDUSTRIES = {
     icon:        '🏭',
     color:       '#8b5cf6',
     colorMuted:  '#ddd6fe',
+    image:       manufacturingImg,
     apiUrl:      import.meta.env.VITE_MFG_API_URL || '',
     ready:       true,
     assetTypes:  ['cnc_machine', 'conveyor', 'robot_arm', 'env_sensor', 'quality_station', 'cement_kiln', 'cement_mill', 'rotary_equipment'],
@@ -83,6 +102,7 @@ export const INDUSTRIES = {
     icon:        '📦',
     color:       '#f97316',
     colorMuted:  '#fed7aa',
+    image:       logisticsImg,
     apiUrl:      import.meta.env.VITE_LOGISTICS_API_URL || '',
     ready:       true,
     assetTypes:  ['truck', 'van', 'warehouse', 'cold_chain', 'shipment'],
@@ -96,6 +116,7 @@ export const INDUSTRIES = {
     icon:        '🏦',
     color:       '#10b981',
     colorMuted:  '#a7f3d0',
+    image:       bfsiImg,
     apiUrl:      import.meta.env.VITE_BFSI_API_URL || '',
     ready:       true,
     assetTypes:  ['transaction_stream', 'atm', 'branch'],
@@ -109,6 +130,7 @@ export const INDUSTRIES = {
     icon:        '🛒',
     color:       '#ec4899',
     colorMuted:  '#fbcfe8',
+    image:       retailImg,
     apiUrl:      import.meta.env.VITE_RETAIL_API_URL || '',
     ready:       true,
     assetTypes:  ['store_zone', 'checkout', 'inventory_sensor', 'digital_platform'],
@@ -122,6 +144,7 @@ export const INDUSTRIES = {
     icon:        '🏥',
     color:       '#ef4444',
     colorMuted:  '#fecaca',
+    image:       healthcareImg,
     apiUrl:      import.meta.env.VITE_HEALTH_API_URL || '',
     ready:       true,
     assetTypes:  ['patient_monitor', 'ventilator', 'infusion_pump', 'bed_sensor'],
@@ -135,6 +158,7 @@ export const INDUSTRIES = {
     icon:        '📈',
     color:       '#6366f1',
     colorMuted:  '#c7d2fe',
+    image:       stockexchangeImg,
     apiUrl:      import.meta.env.VITE_STOCKEXCHANGE_API_URL || '',
     ready:       true,
     assetTypes:  ['stock', 'market_index', 'sector_basket'],
@@ -148,6 +172,7 @@ export const INDUSTRIES = {
     icon:        '🏨',
     color:       '#10b981',
     colorMuted:  '#a7f3d0',
+    image:       travelImg,
     apiUrl:      import.meta.env.VITE_TRAVEL_API_URL || '',
     ready:       true,
     assetTypes:  ['hotel_room', 'fnb_outlet', 'spa_service', 'guest_feedback', 'facility'],

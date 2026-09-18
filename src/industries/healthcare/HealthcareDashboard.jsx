@@ -18,14 +18,84 @@ import { useCondenseWS } from "../../hooks/useCondenseWS.js";
 import { INDUSTRIES } from "../../config/industries.js";
 import { useWindowSize } from "../../hooks/useWindowSize.js";
 import {
-  ConnectionStatus,
-  KPICard,
   AlertFeed,
   StatusBadge,
   HealthGauge,
-  DashboardHeader,
-  RefreshButton,
+  THEME,
+  ThemedDashboardHeader,
+  ThemedKPICard,
+  NotConfiguredGuard,
 } from "../../components/shared.jsx";
+import healthcareHero from "../../assets/industries/healthcare.jpg";
+
+// One ECG heartbeat template (P–QRS–T), 100 units wide. Two copies back to
+// back + a CSS translateX loop create a seamless scroll; the loop's DURATION
+// is set to 60/bpm seconds, so one waveform cycle = one real heartbeat.
+const ECG_CYCLE = "M0,20 L8,20 L12,15 L16,20 L26,20 L30,4 L34,36 L38,20 L48,20 L54,10 L60,20 L100,20";
+
+function ECGWaveform({ bpm, color }) {
+  const safeBpm = bpm > 0 ? bpm : 72;
+  const duration = 60 / safeBpm;
+  return (
+    <div style={{ width: '100%', height: 56, overflow: 'hidden', position: 'relative' }}>
+      <svg width="200" height="56" viewBox="0 0 200 40" preserveAspectRatio="none" style={{
+        position: 'absolute', left: 0, top: 0, height: '100%', width: '200%',
+        animation: `condense-ecg-scroll ${duration}s linear infinite`,
+      }}>
+        <path d={ECG_CYCLE} fill="none" stroke={color} strokeWidth="2" strokeLinejoin="round" strokeLinecap="round" />
+        <path d={ECG_CYCLE} fill="none" stroke={color} strokeWidth="2" strokeLinejoin="round" strokeLinecap="round" transform="translate(100,0)" />
+      </svg>
+      <style>{`@keyframes condense-ecg-scroll { from { transform: translateX(0); } to { transform: translateX(-100px); } }`}</style>
+    </div>
+  );
+}
+
+// Hero — a real scrolling ECG trace. The time between beats is set by the
+// real fleet-average heart rate (avgHR), not a fixed decorative loop; color
+// reflects the real avgSpO2 reading.
+function VitalsHero({ photo, avgHR, avgSpO2, stats }) {
+  const ecgColor = Number(avgSpO2) >= 95 ? '#4ade80' : Number(avgSpO2) > 0 ? '#f87171' : '#5b9cf5';
+  return (
+    <div style={{ position: 'relative', borderRadius: 16, overflow: 'hidden', marginBottom: 20, minHeight: 240 }}>
+      <img src={photo} alt="ICU monitor" style={{ position: 'absolute', inset: 0, width: '100%', height: '100%', objectFit: 'cover' }} />
+      <div style={{ position: 'absolute', inset: 0, pointerEvents: 'none',
+        background: 'linear-gradient(180deg, rgba(9,14,26,0.15) 0%, rgba(9,14,26,0.35) 45%, rgba(9,14,26,0.82) 100%)' }} />
+      <div style={{ position: 'relative', padding: '20px 24px', display: 'flex', flexDirection: 'column',
+        justifyContent: 'space-between', minHeight: 240, boxSizing: 'border-box' }}>
+        <div style={{ pointerEvents: 'none' }}>
+          <div style={{ display: 'inline-flex', alignItems: 'center', gap: 6, background: 'rgba(11,18,32,0.55)',
+            border: '1px solid rgba(255,255,255,0.18)', borderRadius: 20, padding: '4px 10px', marginBottom: 10 }}>
+            <span style={{ width: 6, height: 6, borderRadius: '50%', background: '#4ade80', boxShadow: '0 0 6px #4ade80' }} />
+            <span style={{ fontSize: 10.5, fontWeight: 700, color: '#e6eaf2', letterSpacing: '0.05em' }}>LIVE PATIENT MONITORING</span>
+          </div>
+          <div style={{ fontFamily: "'Space Grotesk', 'Inter', sans-serif", fontSize: 20, fontWeight: 700, color: '#ffffff' }}>ICU & Ward Vitals</div>
+        </div>
+
+        <div style={{ background: 'rgba(11,18,32,0.6)', backdropFilter: 'blur(4px)', border: '1px solid rgba(255,255,255,0.16)',
+          borderRadius: 10, padding: '8px 14px', marginBottom: 12 }}>
+          <div style={{ fontSize: 9.5, color: 'rgba(230,234,242,0.7)', textTransform: 'uppercase', letterSpacing: '0.06em', marginBottom: 2 }}>
+            Fleet Avg ECG · {avgHR > 0 ? `${avgHR} bpm` : 'no signal'}
+          </div>
+          <ECGWaveform bpm={Number(avgHR)} color={ecgColor} />
+        </div>
+
+        <div style={{ display: 'flex', gap: 10, flexWrap: 'wrap', pointerEvents: 'none' }}>
+          {stats.map(s => (
+            <div key={s.label} style={{
+              background: 'rgba(11,18,32,0.6)', backdropFilter: 'blur(4px)',
+              border: '1px solid rgba(255,255,255,0.16)', borderRadius: 10, padding: '8px 14px', minWidth: 92,
+            }}>
+              <div style={{ fontSize: 9.5, color: 'rgba(230,234,242,0.7)', textTransform: 'uppercase', letterSpacing: '0.06em', marginBottom: 3 }}>{s.label}</div>
+              <div style={{ fontFamily: 'monospace', fontSize: 17, fontWeight: 700, color: s.color || '#ffffff' }}>
+                {s.value}{s.unit && <span style={{ fontSize: 11, color: 'rgba(230,234,242,0.6)', marginLeft: 2 }}>{s.unit}</span>}
+              </div>
+            </div>
+          ))}
+        </div>
+      </div>
+    </div>
+  );
+}
 
 const MAX_HISTORY = 40;
 
@@ -383,7 +453,10 @@ export default function HealthcareDashboard() {
 
   const [selectedAsset, setSelectedAsset] = useState(null);
   const [history, setHistory] = useState([]);
+  const [theme, setTheme] = useState(() => localStorage.getItem('healthcare_theme') || 'dark');
   const prevRef = useRef({});
+
+  useEffect(() => { localStorage.setItem('healthcare_theme', theme); }, [theme]);
 
   const assetList = Object.values(assets);
   const monitors = assetList.filter((a) => a.asset_type === "patient_monitor");
@@ -442,66 +515,39 @@ export default function HealthcareDashboard() {
 
   // ── Not configured guard ─────────────────────────────────────────────────────
   if (!industry.apiUrl) {
-    return (
-      <>
-      <div style={{ display:'flex', flexDirection:'column', alignItems:'center',
-        justifyContent:'center', minHeight:'70vh', gap:16, background:'#f8fafc',
-        fontFamily:'system-ui,sans-serif', padding:40 }}>
-        {/* Pulsing signal icon */}
-        <div style={{ position:'relative', width:72, height:72 }}>
-          <div style={{
-            position:'absolute', inset:0, borderRadius:'50%',
-            background:'rgba(37,125,240,0.08)',
-            animation:'ping 2s cubic-bezier(0,0,0.2,1) infinite',
-          }}/>
-          <div style={{
-            position:'relative', width:72, height:72, borderRadius:'50%',
-            background:'rgba(37,125,240,0.12)',
-            display:'flex', alignItems:'center', justifyContent:'center',
-          }}>
-            <svg width="32" height="32" viewBox="0 0 24 24" fill="none">
-              <path d="M3 12h2M19 12h2M12 3v2M12 19v2" stroke="#257df0" strokeWidth="2" strokeLinecap="round"/>
-              <circle cx="12" cy="12" r="3" fill="#257df0" opacity="0.7"/>
-              <path d="M5.6 5.6l1.4 1.4M16.9 16.9l1.4 1.4M5.6 18.4l1.4-1.4M16.9 7.1l1.4-1.4"
-                stroke="#257df0" strokeWidth="2" strokeLinecap="round" opacity="0.4"/>
-            </svg>
-          </div>
-        </div>
-
-        <div style={{ textAlign:'center' }}>
-          <div style={{ fontSize:17, fontWeight:700, color:'#1e293b', marginBottom:6 }}>
-            No Live Data Available
-          </div>
-          <div style={{ fontSize:13, color:'#94a3b8', maxWidth:280, lineHeight:1.6 }}>
-            This pipeline isn't connected yet. Deploy the simulator and processor on Condense to start seeing real-time data.
-          </div>
-        </div>
-
-        <div style={{ display:'flex', alignItems:'center', gap:8, marginTop:4 }}>
-          <span style={{ width:8, height:8, borderRadius:'50%', background:'#cbd5e1', display:'inline-block' }}/>
-          <span style={{ fontSize:12, color:'#94a3b8' }}>Waiting for connection</span>
-        </div>
-      </div>
-      <style>{`@keyframes ping { 75%,100% { transform:scale(2); opacity:0; } }`}</style>
-      </>
-    );
+    return <NotConfiguredGuard theme={theme} />;
   }
+  const t = THEME[theme];
   return (
     <div
       style={{
         padding: isMobile ? "12px 14px" : isTV ? "32px 40px" : "24px 28px",
         minHeight: "100vh",
-        background: "#f1f5f9",
-        color: "#1e293b",
+        background: t.pageBg,
+        color: t.text,
         fontFamily: "system-ui,sans-serif",
       }}
     >
-      <DashboardHeader
+      <ThemedDashboardHeader
         industryId="healthcare"
         title="Healthcare / Medical IoT"
         subtitle={`Monitor ${monitors.length} patients · ${vents.length} ventilators`}
         status={status}
         onRefresh={refresh}
+        theme={theme}
+        onToggleTheme={() => setTheme(v => v === 'dark' ? 'light' : 'dark')}
+      />
+
+      <VitalsHero
+        photo={healthcareHero}
+        avgHR={Number(avgHR) || 0}
+        avgSpO2={avgSpO2}
+        stats={[
+          { label: 'Active Patients', value: monitors.length, color: '#4ade80' },
+          { label: 'Critical', value: critical, color: critical > 0 ? '#f87171' : '#4ade80' },
+          { label: 'Avg SpO2', value: avgSpO2, unit: '%', color: Number(avgSpO2) >= 95 ? '#4ade80' : '#f87171' },
+          { label: 'Avg Heart Rate', value: avgHR, unit: 'bpm', color: '#93c5fd' },
+        ]}
       />
 
       {critical > 0 && (
@@ -530,30 +576,30 @@ export default function HealthcareDashboard() {
       <div
         style={{ display: "flex", gap: 12, marginBottom: 24, flexWrap: "wrap" }}
       >
-        <KPICard
+        <ThemedKPICard theme={theme}
           label="Active Patients"
           value={monitors.length}
           color="#22c55e"
         />
-        <KPICard
+        <ThemedKPICard theme={theme}
           label="Critical Status"
           value={critical}
           color={critical > 0 ? "#ef4444" : "#22c55e"}
         />
-        <KPICard
+        <ThemedKPICard theme={theme}
           label="Avg SpO2"
           value={avgSpO2}
           unit="%"
           color={Number(avgSpO2) >= 95 ? "#22c55e" : "#ef4444"}
         />
-        <KPICard
+        <ThemedKPICard theme={theme}
           label="Avg Heart Rate"
           value={avgHR}
           unit=" bpm"
           color="#3b82f6"
         />
-        <KPICard label="Ventilators" value={vents.length} color="#8b5cf6" />
-        <KPICard label="Critical Alerts" value={critAlerts} color="#ef4444" />
+        <ThemedKPICard theme={theme} label="Ventilators" value={vents.length} color="#8b5cf6" />
+        <ThemedKPICard theme={theme} label="Critical Alerts" value={critAlerts} color="#ef4444" />
       </div>
 
       <div

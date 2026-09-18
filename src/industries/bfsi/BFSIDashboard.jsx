@@ -20,14 +20,94 @@ import { useCondenseWS } from "../../hooks/useCondenseWS.js";
 import { INDUSTRIES } from "../../config/industries.js";
 import { useWindowSize } from "../../hooks/useWindowSize.js";
 import {
-  ConnectionStatus,
-  KPICard,
   AlertFeed,
   StatusBadge,
   HealthGauge,
-  DashboardHeader,
-  RefreshButton,
+  THEME,
+  ThemedDashboardHeader,
+  ThemedKPICard,
+  NotConfiguredGuard,
 } from "../../components/shared.jsx";
+import bfsiHero from "../../assets/industries/bfsi.jpg";
+
+// Flow connector — a dot travels the line, its cycle time set by real TPS
+// (higher throughput = faster-moving particle, not a fixed decorative speed).
+function FlowLine({ tps }) {
+  const duration = Math.max(0.5, Math.min(4, 60 / Math.max(tps, 1)));
+  return (
+    <div style={{ position: 'relative', flex: 1, height: 2, background: 'rgba(255,255,255,0.15)', margin: '0 4px', minWidth: 30 }}>
+      <div style={{
+        position: 'absolute', top: -3, width: 8, height: 8, borderRadius: '50%',
+        background: '#4ade80', boxShadow: '0 0 8px #4ade80',
+        animation: `condense-bfsi-flow ${duration}s linear infinite`,
+      }} />
+      <style>{`@keyframes condense-bfsi-flow { from { left: 0%; } to { left: calc(100% - 8px); } }`}</style>
+    </div>
+  );
+}
+
+// Fraud-risk gauge — needle angle set by the real fleet-average fraud_score (0–1).
+function FraudGauge({ score }) {
+  const angle = -90 + Math.max(0, Math.min(1, score)) * 180;
+  const color = score >= 0.7 ? '#f87171' : score >= 0.4 ? '#fbbf24' : '#4ade80';
+  return (
+    <svg width="72" height="42" viewBox="0 0 72 42">
+      <path d="M6,38 A30,30 0 0,1 66,38" fill="none" stroke="rgba(255,255,255,0.18)" strokeWidth="5" strokeLinecap="round" />
+      <path d="M6,38 A30,30 0 0,1 66,38" fill="none" stroke={color} strokeWidth="5" strokeLinecap="round"
+        strokeDasharray={`${Math.max(0, Math.min(1, score)) * 94.2} 200`} />
+      <line x1="36" y1="38" x2={36 + 24 * Math.cos((angle * Math.PI) / 180)} y2={38 + 24 * Math.sin((angle * Math.PI) / 180)}
+        stroke="#ffffff" strokeWidth="2" strokeLinecap="round" style={{ transition: 'all 0.6s ease' }} />
+      <circle cx="36" cy="38" r="3" fill="#ffffff" />
+    </svg>
+  );
+}
+
+// Hero — a live transaction-flow diagram. Particle speed is set by the real
+// aggregate TPS; the gauge needle by the real average fraud score.
+function TransactionFlowHero({ photo, streamCount, totalTPS, avgFraudScore, stats }) {
+  return (
+    <div style={{ position: 'relative', borderRadius: 16, overflow: 'hidden', marginBottom: 20, minHeight: 240 }}>
+      <img src={photo} alt="Fintech operations" style={{ position: 'absolute', inset: 0, width: '100%', height: '100%', objectFit: 'cover' }} />
+      <div style={{ position: 'absolute', inset: 0, pointerEvents: 'none',
+        background: 'linear-gradient(180deg, rgba(9,14,26,0.2) 0%, rgba(9,14,26,0.4) 45%, rgba(9,14,26,0.85) 100%)' }} />
+      <div style={{ position: 'relative', padding: '20px 24px', display: 'flex', flexDirection: 'column',
+        justifyContent: 'space-between', minHeight: 240, boxSizing: 'border-box' }}>
+        <div style={{ pointerEvents: 'none' }}>
+          <div style={{ display: 'inline-flex', alignItems: 'center', gap: 6, background: 'rgba(11,18,32,0.55)',
+            border: '1px solid rgba(255,255,255,0.18)', borderRadius: 20, padding: '4px 10px', marginBottom: 10 }}>
+            <span style={{ width: 6, height: 6, borderRadius: '50%', background: '#4ade80', boxShadow: '0 0 6px #4ade80' }} />
+            <span style={{ fontSize: 10.5, fontWeight: 700, color: '#e6eaf2', letterSpacing: '0.05em' }}>LIVE TRANSACTION FLOW</span>
+          </div>
+          <div style={{ fontFamily: "'Space Grotesk', 'Inter', sans-serif", fontSize: 20, fontWeight: 700, color: '#ffffff' }}>Payments & Fraud Operations</div>
+        </div>
+
+        <div style={{ display: 'flex', alignItems: 'center', background: 'rgba(11,18,32,0.6)', backdropFilter: 'blur(4px)',
+          border: '1px solid rgba(255,255,255,0.16)', borderRadius: 10, padding: '12px 16px', marginBottom: 12, gap: 4 }}>
+          <div style={{ fontSize: 11, fontWeight: 700, color: '#e6eaf2', whiteSpace: 'nowrap' }}>{streamCount} Streams</div>
+          <FlowLine tps={totalTPS} />
+          <div style={{ fontSize: 11, fontWeight: 700, color: '#e6eaf2', whiteSpace: 'nowrap' }}>Processor</div>
+          <FlowLine tps={totalTPS} />
+          <div style={{ fontSize: 11, fontWeight: 700, color: '#e6eaf2', whiteSpace: 'nowrap' }}>Fraud Engine</div>
+          <FraudGauge score={avgFraudScore} />
+        </div>
+
+        <div style={{ display: 'flex', gap: 10, flexWrap: 'wrap', pointerEvents: 'none' }}>
+          {stats.map(s => (
+            <div key={s.label} style={{
+              background: 'rgba(11,18,32,0.6)', backdropFilter: 'blur(4px)',
+              border: '1px solid rgba(255,255,255,0.16)', borderRadius: 10, padding: '8px 14px', minWidth: 92,
+            }}>
+              <div style={{ fontSize: 9.5, color: 'rgba(230,234,242,0.7)', textTransform: 'uppercase', letterSpacing: '0.06em', marginBottom: 3 }}>{s.label}</div>
+              <div style={{ fontFamily: 'monospace', fontSize: 17, fontWeight: 700, color: s.color || '#ffffff' }}>
+                {s.value}{s.unit && <span style={{ fontSize: 11, color: 'rgba(230,234,242,0.6)', marginLeft: 2 }}>{s.unit}</span>}
+              </div>
+            </div>
+          ))}
+        </div>
+      </div>
+    </div>
+  );
+}
 
 const MAX_HISTORY = 40;
 
@@ -251,7 +331,10 @@ export default function BFSIDashboard() {
 
   const [selectedAsset, setSelectedAsset] = useState(null);
   const [history, setHistory] = useState([]);
+  const [theme, setTheme] = useState(() => localStorage.getItem('bfsi_theme') || 'dark');
   const prevRef = useRef({});
+
+  useEffect(() => { localStorage.setItem('bfsi_theme', theme); }, [theme]);
 
   const assetList = Object.values(assets);
   const streams = assetList.filter(
@@ -319,98 +402,75 @@ export default function BFSIDashboard() {
     : 0;
   const critAlerts = alerts.filter((a) => a.severity === "critical").length;
   const highRisk = streams.filter((a) => (a.fraud_score ?? 0) >= 0.7).length;
+  const avgFraudScore = streams.length
+    ? streams.reduce((s, a) => s + (a.fraud_score ?? 0), 0) / streams.length
+    : 0;
 
 
   // ── Not configured guard ─────────────────────────────────────────────────────
   if (!industry.apiUrl) {
-    return (
-      <>
-      <div style={{ display:'flex', flexDirection:'column', alignItems:'center',
-        justifyContent:'center', minHeight:'70vh', gap:16, background:'#f8fafc',
-        fontFamily:'system-ui,sans-serif', padding:40 }}>
-        {/* Pulsing signal icon */}
-        <div style={{ position:'relative', width:72, height:72 }}>
-          <div style={{
-            position:'absolute', inset:0, borderRadius:'50%',
-            background:'rgba(37,125,240,0.08)',
-            animation:'ping 2s cubic-bezier(0,0,0.2,1) infinite',
-          }}/>
-          <div style={{
-            position:'relative', width:72, height:72, borderRadius:'50%',
-            background:'rgba(37,125,240,0.12)',
-            display:'flex', alignItems:'center', justifyContent:'center',
-          }}>
-            <svg width="32" height="32" viewBox="0 0 24 24" fill="none">
-              <path d="M3 12h2M19 12h2M12 3v2M12 19v2" stroke="#257df0" strokeWidth="2" strokeLinecap="round"/>
-              <circle cx="12" cy="12" r="3" fill="#257df0" opacity="0.7"/>
-              <path d="M5.6 5.6l1.4 1.4M16.9 16.9l1.4 1.4M5.6 18.4l1.4-1.4M16.9 7.1l1.4-1.4"
-                stroke="#257df0" strokeWidth="2" strokeLinecap="round" opacity="0.4"/>
-            </svg>
-          </div>
-        </div>
-
-        <div style={{ textAlign:'center' }}>
-          <div style={{ fontSize:17, fontWeight:700, color:'#1e293b', marginBottom:6 }}>
-            No Live Data Available
-          </div>
-          <div style={{ fontSize:13, color:'#94a3b8', maxWidth:280, lineHeight:1.6 }}>
-            This pipeline isn't connected yet. Deploy the simulator and processor on Condense to start seeing real-time data.
-          </div>
-        </div>
-
-        <div style={{ display:'flex', alignItems:'center', gap:8, marginTop:4 }}>
-          <span style={{ width:8, height:8, borderRadius:'50%', background:'#cbd5e1', display:'inline-block' }}/>
-          <span style={{ fontSize:12, color:'#94a3b8' }}>Waiting for connection</span>
-        </div>
-      </div>
-      <style>{`@keyframes ping { 75%,100% { transform:scale(2); opacity:0; } }`}</style>
-      </>
-    );
+    return <NotConfiguredGuard theme={theme} />;
   }
+  const t = THEME[theme];
   return (
     <div
       style={{
         padding: isMobile ? "12px 14px" : isTV ? "32px 40px" : "24px 28px",
         minHeight: "100vh",
-        background: "#f1f5f9",
-        color: "#1e293b",
+        background: t.pageBg,
+        color: t.text,
         fontFamily: "system-ui,sans-serif",
       }}
     >
-      <DashboardHeader
+      <ThemedDashboardHeader
         industryId="bfsi"
         title="BFSI / Fintech"
         subtitle={`Streams: ${streams.length} · ATMs: ${atms.length}`}
         status={status}
         onRefresh={refresh}
+        theme={theme}
+        onToggleTheme={() => setTheme(v => v === 'dark' ? 'light' : 'dark')}
+      />
+
+      <TransactionFlowHero
+        photo={bfsiHero}
+        streamCount={streams.length}
+        totalTPS={totalTPS}
+        avgFraudScore={avgFraudScore}
+        stats={[
+          { label: 'Total TPS', value: totalTPS.toFixed(0), color: '#4ade80' },
+          { label: 'Fraud Alerts', value: totalBlocked, color: totalBlocked > 0 ? '#f87171' : '#4ade80' },
+          { label: 'High-Risk Streams', value: highRisk, color: highRisk > 0 ? '#fbbf24' : '#4ade80' },
+          { label: 'Critical Alerts', value: critAlerts, color: critAlerts > 0 ? '#f87171' : '#4ade80' },
+        ]}
       />
 
       <div
         style={{ display: "flex", gap: 12, marginBottom: 24, flexWrap: "wrap" }}
       >
-        <KPICard
+        <ThemedKPICard theme={theme}
           label="Total TPS"
           value={totalTPS.toFixed(0)}
           color="#10b981"
         />
-        <KPICard
+        <ThemedKPICard theme={theme}
           label="Fraud Alerts"
           value={totalBlocked}
           color={totalBlocked > 0 ? "#ef4444" : "#22c55e"}
         />
-        <KPICard
+        <ThemedKPICard theme={theme}
           label="High-Risk Streams"
           value={highRisk}
           color={highRisk > 0 ? "#ef4444" : "#22c55e"}
         />
-        <KPICard
+        <ThemedKPICard theme={theme}
           label="Avg Latency"
           value={avgLatency}
           unit=" ms"
           color={avgLatency > 200 ? "#ef4444" : "#22c55e"}
         />
-        <KPICard label="ATMs Online" value={atms.length} color="#3b82f6" />
-        <KPICard label="Critical Alerts" value={critAlerts} color="#ef4444" />
+        <ThemedKPICard theme={theme} label="ATMs Online" value={atms.length} color="#3b82f6" />
+        <ThemedKPICard theme={theme} label="Critical Alerts" value={critAlerts} color="#ef4444" />
       </div>
 
       <div

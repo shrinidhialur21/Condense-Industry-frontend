@@ -18,13 +18,13 @@ import { useCondenseWS } from "../../hooks/useCondenseWS.js";
 import { INDUSTRIES } from "../../config/industries.js";
 import { useWindowSize } from "../../hooks/useWindowSize.js";
 import {
-  ConnectionStatus,
-  KPICard,
   AlertFeed,
   StatusBadge,
   HealthGauge,
-  DashboardHeader,
-  RefreshButton,
+  THEME,
+  ThemedDashboardHeader,
+  ThemedKPICard,
+  NotConfiguredGuard,
 } from "../../components/shared.jsx";
 
 const MAX_HISTORY = 40;
@@ -819,7 +819,10 @@ export default function AutomotiveDashboard() {
   const [selectedAsset, setSelectedAsset] = useState(null);
   const [history, setHistory] = useState([]);
   const [activeTab, setActiveTab] = useState('obd_fleet'); // 'telematics' | 'obd_fleet' | 'cockpit_dtc'
+  const [theme, setTheme] = useState(() => localStorage.getItem('automotive_theme') || 'dark');
   const prevRef = useRef({});
+
+  useEffect(() => { localStorage.setItem('automotive_theme', theme); }, [theme]);
   // Position history for map trails: {vehicle_id: [{lat, lon}, ...]}
   const posHistory = useRef({});
 
@@ -918,67 +921,52 @@ export default function AutomotiveDashboard() {
 
   // ── Not configured guard ─────────────────────────────────────────────────────
   if (!industry.apiUrl) {
-    return (
-      <>
-      <div style={{ display:'flex', flexDirection:'column', alignItems:'center',
-        justifyContent:'center', minHeight:'70vh', gap:16, background:'#f8fafc',
-        fontFamily:'system-ui,sans-serif', padding:40 }}>
-        {/* Pulsing signal icon */}
-        <div style={{ position:'relative', width:72, height:72 }}>
-          <div style={{
-            position:'absolute', inset:0, borderRadius:'50%',
-            background:'rgba(37,125,240,0.08)',
-            animation:'ping 2s cubic-bezier(0,0,0.2,1) infinite',
-          }}/>
-          <div style={{
-            position:'relative', width:72, height:72, borderRadius:'50%',
-            background:'rgba(37,125,240,0.12)',
-            display:'flex', alignItems:'center', justifyContent:'center',
-          }}>
-            <svg width="32" height="32" viewBox="0 0 24 24" fill="none">
-              <path d="M3 12h2M19 12h2M12 3v2M12 19v2" stroke="#257df0" strokeWidth="2" strokeLinecap="round"/>
-              <circle cx="12" cy="12" r="3" fill="#257df0" opacity="0.7"/>
-              <path d="M5.6 5.6l1.4 1.4M16.9 16.9l1.4 1.4M5.6 18.4l1.4-1.4M16.9 7.1l1.4-1.4"
-                stroke="#257df0" strokeWidth="2" strokeLinecap="round" opacity="0.4"/>
-            </svg>
-          </div>
-        </div>
-
-        <div style={{ textAlign:'center' }}>
-          <div style={{ fontSize:17, fontWeight:700, color:'#1e293b', marginBottom:6 }}>
-            No Live Data Available
-          </div>
-          <div style={{ fontSize:13, color:'#94a3b8', maxWidth:280, lineHeight:1.6 }}>
-            This pipeline isn't connected yet. Deploy the simulator and processor on Condense to start seeing real-time data.
-          </div>
-        </div>
-
-        <div style={{ display:'flex', alignItems:'center', gap:8, marginTop:4 }}>
-          <span style={{ width:8, height:8, borderRadius:'50%', background:'#cbd5e1', display:'inline-block' }}/>
-          <span style={{ fontSize:12, color:'#94a3b8' }}>Waiting for connection</span>
-        </div>
-      </div>
-      <style>{`@keyframes ping { 75%,100% { transform:scale(2); opacity:0; } }`}</style>
-      </>
-    );
+    return <NotConfiguredGuard theme={theme} />;
   }
+  const t = THEME[theme];
   return (
     <div
       style={{
         padding: isMobile ? "12px 14px" : isTV ? "32px 40px" : "24px 28px",
         minHeight: "100vh",
-        background: "#f1f5f9",
-        color: "#1e293b",
+        background: t.pageBg,
+        color: t.text,
         fontFamily: "system-ui,sans-serif",
       }}
     >
-      <DashboardHeader
+      <ThemedDashboardHeader
         industryId="automotive"
         title="Automotive & Telematics"
         subtitle={`${telematics.length} telematics · ${cvFleet.length} OBD fleet · ${cockpitFleet.length} digital cockpit`}
         status={status}
         onRefresh={refresh}
+        theme={theme}
+        onToggleTheme={() => setTheme(v => v === 'dark' ? 'light' : 'dark')}
       />
+
+      {/* Signature visual — the real GPS fleet map, always visible (not tab-gated).
+          Vehicle dots actually move (posHistory trails), colored by real veh_spd. */}
+      <div style={{ background: t.cardBg, border: `1px solid ${t.cardBorder}`, borderRadius: 16, padding: 18, marginBottom: 20 }}>
+        <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', flexWrap: 'wrap', gap: 8, marginBottom: 12 }}>
+          <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
+            <span style={{ width: 7, height: 7, borderRadius: '50%', background: '#4ade80', boxShadow: '0 0 6px #4ade80' }} />
+            <span style={{ fontFamily: "'Space Grotesk', 'Inter', sans-serif", fontSize: 15, fontWeight: 700, color: t.text }}>Live GPS Fleet Map</span>
+          </div>
+          <div style={{ display: 'flex', gap: 16, fontSize: 11.5, color: t.textDim }}>
+            <span>Telematics <b style={{ color: t.text }}>{telematics.length}</b></span>
+            <span>OBD Fleet <b style={{ color: t.text }}>{cvFleet.length}</b></span>
+            <span>Cockpit <b style={{ color: t.text }}>{cockpitFleet.length}</b></span>
+            <span>Critical <b style={{ color: critAlerts > 0 ? '#ef4444' : t.text }}>{critAlerts}</b></span>
+          </div>
+        </div>
+        {cvFleet.length === 0 ? (
+          <div style={{ height: 220, display: 'flex', alignItems: 'center', justifyContent: 'center', color: t.textDim, fontSize: 12, background: t.pageBg, borderRadius: 8 }}>
+            {status === 'connecting' ? 'Connecting to OBD pipeline…' : 'Start the OBD simulator to see vehicles move on the map'}
+          </div>
+        ) : (
+          <FleetMap vehicles={cvFleet} selectedId={selectedAsset} onSelect={setSelectedAsset} posHistory={posHistory} />
+        )}
+      </div>
 
       {/* ── Pipeline tabs ── */}
       <div style={{ display:'flex', gap:4, marginBottom:20, background:'#e2e8f0', borderRadius:10, padding:4 }}>
@@ -1000,11 +988,11 @@ export default function AutomotiveDashboard() {
       {/* ══ TELEMATICS FLEET TAB ══ */}
       {activeTab === 'telematics' && <>
       <div style={{ display:"flex", gap:12, marginBottom:24, flexWrap:"wrap" }}>
-        <KPICard label="Vehicles Online"  value={telematics.length}  color="#22c55e" />
-        <KPICard label="Active (Moving)"  value={active}             color="#f59e0b" />
-        <KPICard label="Fleet Avg Speed"  value={avgSpeed} unit="km/h" color="#3b82f6" />
-        <KPICard label="Total DTC Codes"  value={totalDTCs}          color={totalDTCs > 0 ? "#ef4444" : "#22c55e"} />
-        <KPICard label="Critical Alerts"  value={critAlerts}         color="#ef4444" />
+        <ThemedKPICard theme={theme} label="Vehicles Online"  value={telematics.length}  color="#22c55e" />
+        <ThemedKPICard theme={theme} label="Active (Moving)"  value={active}             color="#f59e0b" />
+        <ThemedKPICard theme={theme} label="Fleet Avg Speed"  value={avgSpeed} unit="km/h" color="#3b82f6" />
+        <ThemedKPICard theme={theme} label="Total DTC Codes"  value={totalDTCs}          color={totalDTCs > 0 ? "#ef4444" : "#22c55e"} />
+        <ThemedKPICard theme={theme} label="Critical Alerts"  value={critAlerts}         color="#ef4444" />
       </div>
 
       <div style={{ display:"grid", gridTemplateColumns: isMobile || isTablet ? "1fr" : "280px 1fr", gap:20, marginBottom:20 }}>
@@ -1134,47 +1122,27 @@ export default function AutomotiveDashboard() {
 
         {/* Fleet KPI bar */}
         <div style={{ display:'flex', gap:12, marginBottom:20, flexWrap:'wrap' }}>
-          <KPICard label="CV Fleet Online"   value={cvFleet.length}               color="#22c55e"  sub="Commercial vehicles" />
-          <KPICard label="In Transit"        value={cvMoving}                     color="#3b82f6"  sub={`of ${cvFleet.length} vehicles`} />
-          <KPICard label="Fleet Avg Speed"   value={cvAvgSpeed} unit="km/h"       color="#f59e0b" />
-          <KPICard label="Overloaded"        value={cvOverloaded}                 color={cvOverloaded > 0 ? '#ef4444' : '#22c55e'}
+          <ThemedKPICard theme={theme} label="CV Fleet Online"   value={cvFleet.length}               color="#22c55e"  sub="Commercial vehicles" />
+          <ThemedKPICard theme={theme} label="In Transit"        value={cvMoving}                     color="#3b82f6"  sub={`of ${cvFleet.length} vehicles`} />
+          <ThemedKPICard theme={theme} label="Fleet Avg Speed"   value={cvAvgSpeed} unit="km/h"       color="#f59e0b" />
+          <ThemedKPICard theme={theme} label="Overloaded"        value={cvOverloaded}                 color={cvOverloaded > 0 ? '#ef4444' : '#22c55e'}
             sub="VLS > 75 or persistent_overload" />
-          <KPICard label="Avg Driver Score"  value={cvAvgDriverScore ?? '—'} unit="/100"
+          <ThemedKPICard theme={theme} label="Avg Driver Score"  value={cvAvgDriverScore ?? '—'} unit="/100"
             color={cvAvgDriverScore >= 80 ? '#16a34a' : cvAvgDriverScore >= 60 ? '#d97706' : '#dc2626'}
             sub="DS = 100 − harsh − idle − FE penalty" />
-          <KPICard label="Avg Fuel Eff."     value={cvAvgFE ?? '—'} unit="km/L"
+          <ThemedKPICard theme={theme} label="Avg Fuel Eff."     value={cvAvgFE ?? '—'} unit="km/L"
             color={(parseFloat(cvAvgFE) || 0) >= 8 ? '#16a34a' : '#d97706'}
             sub="FE = Σdist / Σfuel (rolling 10)" />
-          <KPICard label="Harsh Events"      value={cvTotalHarshEvents}           color={cvTotalHarshEvents > 0 ? '#f59e0b' : '#22c55e'}
+          <ThemedKPICard theme={theme} label="Harsh Events"      value={cvTotalHarshEvents}           color={cvTotalHarshEvents > 0 ? '#f59e0b' : '#22c55e'}
             sub="HBD + HAD this tick" />
-          <KPICard label="Overspeed Now"     value={cvOverspeed}                  color={cvOverspeed > 0 ? '#ef4444' : '#22c55e'}
+          <ThemedKPICard theme={theme} label="Overspeed Now"     value={cvOverspeed}                  color={cvOverspeed > 0 ? '#ef4444' : '#22c55e'}
             sub="VEH_SPD > 80 km/h" />
-          <KPICard label="Fleet Idle Waste"  value={cvIdleFuelWaste} unit="L"    color="#7c3aed"
+          <ThemedKPICard theme={theme} label="Fleet Idle Waste"  value={cvIdleFuelWaste} unit="L"    color="#7c3aed"
             sub={`₹${cvTotalIdleCost} idle cost (session)`} />
-          <KPICard label="Critical Alerts"   value={critAlerts}                   color="#ef4444" />
+          <ThemedKPICard theme={theme} label="Critical Alerts"   value={critAlerts}                   color="#ef4444" />
         </div>
 
-        {/* Live Map */}
-        <div style={{ background:'#ffffff', border:'1px solid #e2e8f0', borderRadius:12, padding:'16px 20px', marginBottom:20 }}>
-          <div style={{ display:'flex', justifyContent:'space-between', alignItems:'center', marginBottom:12 }}>
-            <div style={{ fontSize:13, fontWeight:700, color:'#1e293b' }}>🗺 Live Fleet Map — Real-time GPS Positions</div>
-            <div style={{ fontSize:11, color:'#64748b' }}>
-              {cvFleet.filter(v => v.latitude).length} vehicles with GPS · Hyderabad Metropolitan
-            </div>
-          </div>
-          {cvFleet.length === 0 ? (
-            <div style={{ height:220, display:'flex', alignItems:'center', justifyContent:'center', color:'#94a3b8', fontSize:12, background:'#f8fafc', borderRadius:8 }}>
-              {status === 'connecting' ? 'Connecting to OBD pipeline…' : 'Start the OBD simulator to see vehicles on map'}
-            </div>
-          ) : (
-            <FleetMap
-              vehicles={cvFleet}
-              selectedId={selectedAsset}
-              onSelect={setSelectedAsset}
-              posHistory={posHistory}
-            />
-          )}
-        </div>
+        {/* Live fleet map now lives in the page hero above (always visible, not tab-gated). */}
 
         {/* Vehicle list + detail */}
         <div style={{ display:'grid', gridTemplateColumns: isMobile || isTablet ? '1fr' : '300px 1fr', gap:20 }}>
@@ -1228,12 +1196,12 @@ export default function AutomotiveDashboard() {
       {/* ══ DIGITAL COCKPIT TAB (MSIL / RBIN) ══ */}
       {activeTab === 'cockpit_dtc' && <>
         <div style={{ display:'flex', gap:12, marginBottom:20, flexWrap:'wrap' }}>
-          <KPICard label="Cockpits Online"   value={cockpitFleet.length}          color="#22c55e" sub="Digital cockpit / Suzuki Connect" />
-          <KPICard label="Avg Health Score"  value={cockpitAvgHealth ?? '—'} unit="/100"
+          <ThemedKPICard theme={theme} label="Cockpits Online"   value={cockpitFleet.length}          color="#22c55e" sub="Digital cockpit / Suzuki Connect" />
+          <ThemedKPICard theme={theme} label="Avg Health Score"  value={cockpitAvgHealth ?? '—'} unit="/100"
             color={cockpitAvgHealth >= 80 ? '#16a34a' : cockpitAvgHealth >= 50 ? '#d97706' : '#dc2626'} />
-          <KPICard label="Active DTC Codes"  value={cockpitTotalDTCs}             color={cockpitTotalDTCs > 0 ? '#ef4444' : '#22c55e'} />
-          <KPICard label="Critical Faults"   value={cockpitCritical}              color={cockpitCritical > 0 ? '#ef4444' : '#22c55e'} />
-          <KPICard label="OTA Fix Available" value={cockpitOtaAvailable}          color={cockpitOtaAvailable > 0 ? '#1d4ed8' : '#94a3b8'}
+          <ThemedKPICard theme={theme} label="Active DTC Codes"  value={cockpitTotalDTCs}             color={cockpitTotalDTCs > 0 ? '#ef4444' : '#22c55e'} />
+          <ThemedKPICard theme={theme} label="Critical Faults"   value={cockpitCritical}              color={cockpitCritical > 0 ? '#ef4444' : '#22c55e'} />
+          <ThemedKPICard theme={theme} label="OTA Fix Available" value={cockpitOtaAvailable}          color={cockpitOtaAvailable > 0 ? '#1d4ed8' : '#94a3b8'}
             sub="Remediable via software update" />
         </div>
 

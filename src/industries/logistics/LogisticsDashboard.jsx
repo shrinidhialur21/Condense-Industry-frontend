@@ -10,9 +10,112 @@ import { useCondenseWS } from '../../hooks/useCondenseWS.js';
 import { INDUSTRIES }    from '../../config/industries.js';
 import { useWindowSize } from '../../hooks/useWindowSize.js';
 import {
-  ConnectionStatus, KPICard, AlertFeed, StatusBadge, HealthGauge,
-  DashboardHeader, RefreshButton,
+  AlertFeed, StatusBadge, HealthGauge,
+  THEME, ThemedDashboardHeader, ThemedKPICard, NotConfiguredGuard,
 } from '../../components/shared.jsx';
+import logisticsHero from '../../assets/industries/logistics.jpg';
+
+const STAGE_LABEL = { in_transit: 'In Transit', delivered: 'Delivered', delayed: 'Delayed', failed: 'Failed' };
+const STAGE_COLOR = { in_transit: '#5b9cf5', delivered: '#4ade80', delayed: '#fbbf24', failed: '#f87171' };
+
+// Shipment pipeline — stage counts are the real statusCounts breakdown; a
+// particle flows between stages only when that stage actually has shipments.
+function ShipmentFlow({ statusCounts }) {
+  return (
+    <div style={{ display: 'flex', alignItems: 'center', gap: 4 }}>
+      {statusCounts.map((s, i) => (
+        <div key={s.status} style={{ display: 'flex', alignItems: 'center', flex: 1, minWidth: 0 }}>
+          <div style={{
+            flex: 1, textAlign: 'center', padding: '8px 6px', borderRadius: 8,
+            background: `${STAGE_COLOR[s.status]}22`, border: `1px solid ${STAGE_COLOR[s.status]}55`,
+          }}>
+            <div style={{ fontFamily: 'monospace', fontSize: 16, fontWeight: 700, color: STAGE_COLOR[s.status] }}>{s.count}</div>
+            <div style={{ fontSize: 9, color: 'rgba(230,234,242,0.7)', textTransform: 'uppercase', letterSpacing: '0.05em' }}>{STAGE_LABEL[s.status]}</div>
+          </div>
+          {i < statusCounts.length - 1 && (
+            <div style={{ position: 'relative', width: 22, height: 2, background: 'rgba(255,255,255,0.15)', margin: '0 2px', flexShrink: 0 }}>
+              {s.count > 0 && (
+                <div style={{
+                  position: 'absolute', top: -2, width: 6, height: 6, borderRadius: '50%',
+                  background: STAGE_COLOR[s.status], boxShadow: `0 0 6px ${STAGE_COLOR[s.status]}`,
+                  animation: 'condense-ship-flow 1.6s linear infinite',
+                }} />
+              )}
+            </div>
+          )}
+        </div>
+      ))}
+      <style>{`@keyframes condense-ship-flow { from { left: 0%; } to { left: calc(100% - 6px); } }`}</style>
+    </div>
+  );
+}
+
+// Cold-chain ribbon — one chip per real cold-chain asset, colored by whether
+// its live temperature reading is inside the real 2–8°C compliance band.
+function ColdChainRibbon({ assets, getTemp }) {
+  const coldAssets = assets.filter(a => getTemp(a) != null).slice(0, 10);
+  if (coldAssets.length === 0) return null;
+  return (
+    <div style={{ display: 'flex', gap: 6, flexWrap: 'wrap' }}>
+      {coldAssets.map(a => {
+        const temp = getTemp(a);
+        const inRange = temp >= 2 && temp <= 8;
+        return (
+          <div key={a.asset_id} style={{
+            fontFamily: 'monospace', fontSize: 10.5, padding: '3px 8px', borderRadius: 20,
+            background: inRange ? 'rgba(74,222,128,0.18)' : 'rgba(248,113,113,0.22)',
+            color: inRange ? '#4ade80' : '#f87171', border: `1px solid ${inRange ? 'rgba(74,222,128,0.4)' : 'rgba(248,113,113,0.5)'}`,
+          }}>
+            {temp.toFixed(1)}°C
+          </div>
+        );
+      })}
+    </div>
+  );
+}
+
+// Hero — a real shipment pipeline flow + a live cold-chain temperature ribbon.
+function ShipmentHero({ photo, statusCounts, assets, getTemp, stats }) {
+  return (
+    <div style={{ position: 'relative', borderRadius: 16, overflow: 'hidden', marginBottom: 20, minHeight: 240 }}>
+      <img src={photo} alt="Logistics warehouse" style={{ position: 'absolute', inset: 0, width: '100%', height: '100%', objectFit: 'cover' }} />
+      <div style={{ position: 'absolute', inset: 0, pointerEvents: 'none',
+        background: 'linear-gradient(180deg, rgba(9,14,26,0.2) 0%, rgba(9,14,26,0.4) 45%, rgba(9,14,26,0.85) 100%)' }} />
+      <div style={{ position: 'relative', padding: '20px 24px', display: 'flex', flexDirection: 'column',
+        justifyContent: 'space-between', minHeight: 240, boxSizing: 'border-box' }}>
+        <div style={{ pointerEvents: 'none' }}>
+          <div style={{ display: 'inline-flex', alignItems: 'center', gap: 6, background: 'rgba(11,18,32,0.55)',
+            border: '1px solid rgba(255,255,255,0.18)', borderRadius: 20, padding: '4px 10px', marginBottom: 10 }}>
+            <span style={{ width: 6, height: 6, borderRadius: '50%', background: '#4ade80', boxShadow: '0 0 6px #4ade80' }} />
+            <span style={{ fontSize: 10.5, fontWeight: 700, color: '#e6eaf2', letterSpacing: '0.05em' }}>LIVE SHIPMENT PIPELINE</span>
+          </div>
+          <div style={{ fontFamily: "'Space Grotesk', 'Inter', sans-serif", fontSize: 20, fontWeight: 700, color: '#ffffff' }}>Shipments & Cold Chain</div>
+        </div>
+
+        <div style={{ display: 'flex', flexDirection: 'column', gap: 8, marginBottom: 12 }}>
+          <div style={{ background: 'rgba(11,18,32,0.55)', backdropFilter: 'blur(4px)', border: '1px solid rgba(255,255,255,0.16)', borderRadius: 10, padding: '10px 14px' }}>
+            <ShipmentFlow statusCounts={statusCounts} />
+          </div>
+          <ColdChainRibbon assets={assets} getTemp={getTemp} />
+        </div>
+
+        <div style={{ display: 'flex', gap: 10, flexWrap: 'wrap', pointerEvents: 'none' }}>
+          {stats.map(s => (
+            <div key={s.label} style={{
+              background: 'rgba(11,18,32,0.6)', backdropFilter: 'blur(4px)',
+              border: '1px solid rgba(255,255,255,0.16)', borderRadius: 10, padding: '8px 14px', minWidth: 92,
+            }}>
+              <div style={{ fontSize: 9.5, color: 'rgba(230,234,242,0.7)', textTransform: 'uppercase', letterSpacing: '0.06em', marginBottom: 3 }}>{s.label}</div>
+              <div style={{ fontFamily: 'monospace', fontSize: 17, fontWeight: 700, color: s.color || '#ffffff' }}>
+                {s.value}{s.unit && <span style={{ fontSize: 11, color: 'rgba(230,234,242,0.6)', marginLeft: 2 }}>{s.unit}</span>}
+              </div>
+            </div>
+          ))}
+        </div>
+      </div>
+    </div>
+  );
+}
 
 const MAX_HISTORY = 40;
 
@@ -407,7 +510,10 @@ export default function LogisticsDashboard() {
 
   const [selectedAsset, setSelectedAsset] = useState(null);
   const [history, setHistory]             = useState([]);
+  const [theme, setTheme] = useState(() => localStorage.getItem('logistics_theme') || 'dark');
   const prevRef = useRef({});
+
+  useEffect(() => { localStorage.setItem('logistics_theme', theme); }, [theme]);
 
   const assetList   = Object.values(assets);
   // include all moving asset types: delivery_vehicle, shipment, truck, van
@@ -474,79 +580,53 @@ export default function LogisticsDashboard() {
 
   // ── Not configured guard ─────────────────────────────────────────────────────
   if (!industry.apiUrl) {
-    return (
-      <>
-      <div style={{ display:'flex', flexDirection:'column', alignItems:'center',
-        justifyContent:'center', minHeight:'70vh', gap:16, background:'#f8fafc',
-        fontFamily:'system-ui,sans-serif', padding:40 }}>
-        {/* Pulsing signal icon */}
-        <div style={{ position:'relative', width:72, height:72 }}>
-          <div style={{
-            position:'absolute', inset:0, borderRadius:'50%',
-            background:'rgba(37,125,240,0.08)',
-            animation:'ping 2s cubic-bezier(0,0,0.2,1) infinite',
-          }}/>
-          <div style={{
-            position:'relative', width:72, height:72, borderRadius:'50%',
-            background:'rgba(37,125,240,0.12)',
-            display:'flex', alignItems:'center', justifyContent:'center',
-          }}>
-            <svg width="32" height="32" viewBox="0 0 24 24" fill="none">
-              <path d="M3 12h2M19 12h2M12 3v2M12 19v2" stroke="#257df0" strokeWidth="2" strokeLinecap="round"/>
-              <circle cx="12" cy="12" r="3" fill="#257df0" opacity="0.7"/>
-              <path d="M5.6 5.6l1.4 1.4M16.9 16.9l1.4 1.4M5.6 18.4l1.4-1.4M16.9 7.1l1.4-1.4"
-                stroke="#257df0" strokeWidth="2" strokeLinecap="round" opacity="0.4"/>
-            </svg>
-          </div>
-        </div>
-
-        <div style={{ textAlign:'center' }}>
-          <div style={{ fontSize:17, fontWeight:700, color:'#1e293b', marginBottom:6 }}>
-            No Live Data Available
-          </div>
-          <div style={{ fontSize:13, color:'#94a3b8', maxWidth:280, lineHeight:1.6 }}>
-            This pipeline isn't connected yet. Deploy the simulator and processor on Condense to start seeing real-time data.
-          </div>
-        </div>
-
-        <div style={{ display:'flex', alignItems:'center', gap:8, marginTop:4 }}>
-          <span style={{ width:8, height:8, borderRadius:'50%', background:'#cbd5e1', display:'inline-block' }}/>
-          <span style={{ fontSize:12, color:'#94a3b8' }}>Waiting for connection</span>
-        </div>
-      </div>
-      <style>{`@keyframes ping { 75%,100% { transform:scale(2); opacity:0; } }`}</style>
-      </>
-    );
+    return <NotConfiguredGuard theme={theme} />;
   }
+  const t = THEME[theme];
   return (
-    <div style={{ padding: isMobile ? '12px 14px' : isTV ? '32px 40px' : '24px 28px', minHeight:'100vh', background:'#f1f5f9', color:'#1e293b', fontFamily:'system-ui,sans-serif' }}>
-      <DashboardHeader
+    <div style={{ padding: isMobile ? '12px 14px' : isTV ? '32px 40px' : '24px 28px', minHeight:'100vh', background:t.pageBg, color:t.text, fontFamily:'system-ui,sans-serif' }}>
+      <ThemedDashboardHeader
         industryId="logistics"
         title="Logistics & Supply Chain"
         subtitle={`Live fleet tracking · ${assetList.length} assets · ${movingAssets.length} vehicles in motion`}
         status={status}
         onRefresh={refresh}
+        theme={theme}
+        onToggleTheme={() => setTheme(v => v === 'dark' ? 'light' : 'dark')}
+      />
+
+      <ShipmentHero
+        photo={logisticsHero}
+        statusCounts={statusCounts}
+        assets={assetList}
+        getTemp={getTemp}
+        stats={[
+          { label: 'Active Vehicles', value: movingAssets.length, color: '#93c5fd' },
+          { label: 'OTDPI', value: avgOTDPI != null ? `${avgOTDPI}%` : '—', color: '#4ade80' },
+          { label: 'Breakdown Risk', value: critPBRS, color: critPBRS > 0 ? '#f87171' : '#4ade80' },
+          { label: 'Critical Alerts', value: critAlerts, color: critAlerts > 0 ? '#f87171' : '#4ade80' },
+        ]}
       />
 
       <div style={{ display:'flex', gap:12, marginBottom:24, flexWrap:'wrap' }}>
-        <KPICard label="Active Vehicles"     value={movingAssets.length}            color="#0284c7"  sub={`of ${assetList.length} assets`} />
-        <KPICard label="OTDPI"             value={avgOTDPI != null ? `${avgOTDPI}%` : '—'} color={avgOTDPI >= 90 ? '#16a34a' : avgOTDPI >= 75 ? '#d97706' : '#dc2626'}
+        <ThemedKPICard theme={theme} label="Active Vehicles"     value={movingAssets.length}            color="#0284c7"  sub={`of ${assetList.length} assets`} />
+        <ThemedKPICard theme={theme} label="OTDPI"             value={avgOTDPI != null ? `${avgOTDPI}%` : '—'} color={avgOTDPI >= 90 ? '#16a34a' : avgOTDPI >= 75 ? '#d97706' : '#dc2626'}
           sub="On-Time Delivery Index (rolling)" />
-        <KPICard label="Driver Safety"     value={avgSafety ?? '—'} unit="/100"    color={avgSafety >= 80 ? '#16a34a' : avgSafety >= 60 ? '#d97706' : '#dc2626'}
+        <ThemedKPICard theme={theme} label="Driver Safety"     value={avgSafety ?? '—'} unit="/100"    color={avgSafety >= 80 ? '#16a34a' : avgSafety >= 60 ? '#d97706' : '#dc2626'}
           sub="DSS = 100 − braking − speed − idle" />
-        <KPICard label="Fleet MTBF"        value={avgMTBF ?? '—'}   unit="h"       color="#7c3aed"  sub="Mean Time Between Failures" />
-        <KPICard label="Fleet CO₂ Rate"    value={fleetCO2Rate ?? '—'} unit="kg/km" color={fleetCO2Rate < 0.3 ? '#16a34a' : '#d97706'}
+        <ThemedKPICard theme={theme} label="Fleet MTBF"        value={avgMTBF ?? '—'}   unit="h"       color="#7c3aed"  sub="Mean Time Between Failures" />
+        <ThemedKPICard theme={theme} label="Fleet CO₂ Rate"    value={fleetCO2Rate ?? '—'} unit="kg/km" color={fleetCO2Rate < 0.3 ? '#16a34a' : '#d97706'}
           sub="Avg carbon emission per km" />
-        <KPICard label="Breakdown Risk"    value={critPBRS}                         color={critPBRS > 0 ? '#ef4444' : '#16a34a'}
+        <ThemedKPICard theme={theme} label="Breakdown Risk"    value={critPBRS}                         color={critPBRS > 0 ? '#ef4444' : '#16a34a'}
           sub="Vehicles needing inspection (PBRS)" />
-        <KPICard label="Avg POR"           value={avgPOR != null ? `${avgPOR}%` : '—'} color={avgPOR >= 97 ? '#16a34a' : avgPOR >= 90 ? '#d97706' : '#dc2626'}
+        <ThemedKPICard theme={theme} label="Avg POR"           value={avgPOR != null ? `${avgPOR}%` : '—'} color={avgPOR >= 97 ? '#16a34a' : avgPOR >= 90 ? '#d97706' : '#dc2626'}
           sub="Perfect Order Rate (warehouse)" />
-        <KPICard label="Cold Chain CC"     value={avgCCCS != null ? `${avgCCCS}%` : '—'} color={avgCCCS >= 90 ? '#16a34a' : avgCCCS >= 70 ? '#d97706' : '#dc2626'}
+        <ThemedKPICard theme={theme} label="Cold Chain CC"     value={avgCCCS != null ? `${avgCCCS}%` : '—'} color={avgCCCS >= 90 ? '#16a34a' : avgCCCS >= 70 ? '#d97706' : '#dc2626'}
           sub="% ticks within ±2°C setpoint" />
-        <KPICard label="ECIS Alerts"       value={ecisAlerts}                       color={ecisAlerts > 0 ? '#f59e0b' : '#16a34a'}
+        <ThemedKPICard theme={theme} label="ECIS Alerts"       value={ecisAlerts}                       color={ecisAlerts > 0 ? '#f59e0b' : '#16a34a'}
           sub="Cold chain quarantine triggers" />
-        <KPICard label="SLA Breaches"      value={slaBreaches}                      color={slaBreaches > 0 ? '#dc2626' : '#16a34a'} />
-        <KPICard label="Critical Alerts"   value={critAlerts}                       color={critAlerts > 0 ? '#dc2626' : '#64748b'} />
+        <ThemedKPICard theme={theme} label="SLA Breaches"      value={slaBreaches}                      color={slaBreaches > 0 ? '#dc2626' : '#16a34a'} />
+        <ThemedKPICard theme={theme} label="Critical Alerts"   value={critAlerts}                       color={critAlerts > 0 ? '#dc2626' : '#64748b'} />
       </div>
 
       <div style={{ display:'grid', gridTemplateColumns: isMobile || isTablet ? '1fr' : '280px 1fr', gap:20, marginBottom:20 }}>

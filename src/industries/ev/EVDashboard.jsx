@@ -11,9 +11,74 @@ import { useCondenseWS } from '../../hooks/useCondenseWS.js';
 import { INDUSTRIES }    from '../../config/industries.js';
 import { useWindowSize } from '../../hooks/useWindowSize.js';
 import {
-  ConnectionStatus, KPICard, AlertFeed, StatusBadge, HealthGauge,
-  DashboardHeader, RefreshButton,
+  AlertFeed, StatusBadge, HealthGauge,
+  THEME, ThemedDashboardHeader, ThemedKPICard, NotConfiguredGuard,
 } from '../../components/shared.jsx';
+import evHero from '../../assets/industries/ev.jpg';
+
+// Charging bay tile — fill height is the real soc_pct; the pulse animates
+// along the cable only while charging_status is actually a charging state.
+function ChargeBay({ vehicle }) {
+  const soc = vehicle.soc_pct ?? 0;
+  const isCharging = vehicle.charging_status === 'fast_charging' || vehicle.charging_status === 'slow_charging';
+  const fillColor = soc >= 60 ? '#4ade80' : soc >= 30 ? '#fbbf24' : '#f87171';
+  return (
+    <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', gap: 4, width: 46 }}>
+      <div style={{ position: 'relative', width: 22, height: 34, border: '2px solid rgba(255,255,255,0.5)', borderRadius: 4, overflow: 'hidden' }}>
+        <div style={{ position: 'absolute', top: -4, left: '50%', transform: 'translateX(-50%)', width: 10, height: 3, background: 'rgba(255,255,255,0.5)', borderRadius: 1 }} />
+        <div style={{ position: 'absolute', bottom: 0, left: 0, right: 0, height: `${Math.max(4, soc)}%`, background: fillColor, transition: 'height 0.6s ease' }} />
+        {isCharging && (
+          <div style={{ position: 'absolute', inset: 0, background: 'rgba(255,255,255,0.35)', animation: 'condense-charge-pulse 1.2s ease-in-out infinite' }} />
+        )}
+      </div>
+      <span style={{ fontSize: 9, fontFamily: 'monospace', color: '#e6eaf2' }}>{Math.round(soc)}%</span>
+      <style>{`@keyframes condense-charge-pulse { 0%,100% { opacity:0; } 50% { opacity:0.5; } }`}</style>
+    </div>
+  );
+}
+
+// Hero — real charging bays, one per real EV, battery fill = real soc_pct.
+function ChargingHero({ photo, vehicles, stats }) {
+  return (
+    <div style={{ position: 'relative', borderRadius: 16, overflow: 'hidden', marginBottom: 20, minHeight: 240 }}>
+      <img src={photo} alt="EV charging" style={{ position: 'absolute', inset: 0, width: '100%', height: '100%', objectFit: 'cover' }} />
+      <div style={{ position: 'absolute', inset: 0, pointerEvents: 'none',
+        background: 'linear-gradient(180deg, rgba(9,14,26,0.2) 0%, rgba(9,14,26,0.4) 45%, rgba(9,14,26,0.85) 100%)' }} />
+      <div style={{ position: 'relative', padding: '20px 24px', display: 'flex', flexDirection: 'column',
+        justifyContent: 'space-between', minHeight: 240, boxSizing: 'border-box' }}>
+        <div style={{ pointerEvents: 'none' }}>
+          <div style={{ display: 'inline-flex', alignItems: 'center', gap: 6, background: 'rgba(11,18,32,0.55)',
+            border: '1px solid rgba(255,255,255,0.18)', borderRadius: 20, padding: '4px 10px', marginBottom: 10 }}>
+            <span style={{ width: 6, height: 6, borderRadius: '50%', background: '#4ade80', boxShadow: '0 0 6px #4ade80' }} />
+            <span style={{ fontSize: 10.5, fontWeight: 700, color: '#e6eaf2', letterSpacing: '0.05em' }}>LIVE CHARGING NETWORK</span>
+          </div>
+          <div style={{ fontFamily: "'Space Grotesk', 'Inter', sans-serif", fontSize: 20, fontWeight: 700, color: '#ffffff' }}>EV Fleet & Charging Bays</div>
+        </div>
+
+        {vehicles.length > 0 && (
+          <div style={{ display: 'flex', gap: 10, flexWrap: 'wrap', background: 'rgba(11,18,32,0.5)', backdropFilter: 'blur(4px)',
+            border: '1px solid rgba(255,255,255,0.16)', borderRadius: 10, padding: '10px 14px', marginBottom: 12 }}>
+            {vehicles.slice(0, 12).map(v => <ChargeBay key={v.asset_id} vehicle={v} />)}
+          </div>
+        )}
+
+        <div style={{ display: 'flex', gap: 10, flexWrap: 'wrap', pointerEvents: 'none' }}>
+          {stats.map(s => (
+            <div key={s.label} style={{
+              background: 'rgba(11,18,32,0.6)', backdropFilter: 'blur(4px)',
+              border: '1px solid rgba(255,255,255,0.16)', borderRadius: 10, padding: '8px 14px', minWidth: 92,
+            }}>
+              <div style={{ fontSize: 9.5, color: 'rgba(230,234,242,0.7)', textTransform: 'uppercase', letterSpacing: '0.06em', marginBottom: 3 }}>{s.label}</div>
+              <div style={{ fontFamily: 'monospace', fontSize: 17, fontWeight: 700, color: s.color || '#ffffff' }}>
+                {s.value}{s.unit && <span style={{ fontSize: 11, color: 'rgba(230,234,242,0.6)', marginLeft: 2 }}>{s.unit}</span>}
+              </div>
+            </div>
+          ))}
+        </div>
+      </div>
+    </div>
+  );
+}
 
 const MAX_HISTORY = 40;
 
@@ -336,7 +401,10 @@ export default function EVDashboard() {
 
   const [selectedAsset, setSelectedAsset] = useState(null);
   const [history, setHistory]             = useState([]);
+  const [theme, setTheme] = useState(() => localStorage.getItem('ev_theme') || 'dark');
   const prevRef = useRef({});
+
+  useEffect(() => { localStorage.setItem('ev_theme', theme); }, [theme]);
 
   const assetList   = Object.values(assets);
   const evs         = assetList.filter(a => a.asset_type === 'ev_vehicle');
@@ -381,78 +449,50 @@ export default function EVDashboard() {
 
   // ── Not configured guard ─────────────────────────────────────────────────────
   if (!industry.apiUrl) {
-    return (
-      <>
-      <div style={{ display:'flex', flexDirection:'column', alignItems:'center',
-        justifyContent:'center', minHeight:'70vh', gap:16, background:'#f8fafc',
-        fontFamily:'system-ui,sans-serif', padding:40 }}>
-        {/* Pulsing signal icon */}
-        <div style={{ position:'relative', width:72, height:72 }}>
-          <div style={{
-            position:'absolute', inset:0, borderRadius:'50%',
-            background:'rgba(37,125,240,0.08)',
-            animation:'ping 2s cubic-bezier(0,0,0.2,1) infinite',
-          }}/>
-          <div style={{
-            position:'relative', width:72, height:72, borderRadius:'50%',
-            background:'rgba(37,125,240,0.12)',
-            display:'flex', alignItems:'center', justifyContent:'center',
-          }}>
-            <svg width="32" height="32" viewBox="0 0 24 24" fill="none">
-              <path d="M3 12h2M19 12h2M12 3v2M12 19v2" stroke="#257df0" strokeWidth="2" strokeLinecap="round"/>
-              <circle cx="12" cy="12" r="3" fill="#257df0" opacity="0.7"/>
-              <path d="M5.6 5.6l1.4 1.4M16.9 16.9l1.4 1.4M5.6 18.4l1.4-1.4M16.9 7.1l1.4-1.4"
-                stroke="#257df0" strokeWidth="2" strokeLinecap="round" opacity="0.4"/>
-            </svg>
-          </div>
-        </div>
-
-        <div style={{ textAlign:'center' }}>
-          <div style={{ fontSize:17, fontWeight:700, color:'#1e293b', marginBottom:6 }}>
-            No Live Data Available
-          </div>
-          <div style={{ fontSize:13, color:'#94a3b8', maxWidth:280, lineHeight:1.6 }}>
-            This pipeline isn't connected yet. Deploy the simulator and processor on Condense to start seeing real-time data.
-          </div>
-        </div>
-
-        <div style={{ display:'flex', alignItems:'center', gap:8, marginTop:4 }}>
-          <span style={{ width:8, height:8, borderRadius:'50%', background:'#cbd5e1', display:'inline-block' }}/>
-          <span style={{ fontSize:12, color:'#94a3b8' }}>Waiting for connection</span>
-        </div>
-      </div>
-      <style>{`@keyframes ping { 75%,100% { transform:scale(2); opacity:0; } }`}</style>
-      </>
-    );
+    return <NotConfiguredGuard theme={theme} />;
   }
+  const t = THEME[theme];
   return (
-    <div style={{ padding: isMobile ? '12px 14px' : isTV ? '32px 40px' : '24px 28px', minHeight:'100vh', background:'#f1f5f9', color:'#1e293b', fontFamily:'system-ui,sans-serif' }}>
+    <div style={{ padding: isMobile ? '12px 14px' : isTV ? '32px 40px' : '24px 28px', minHeight:'100vh', background:t.pageBg, color:t.text, fontFamily:'system-ui,sans-serif' }}>
       {/* Header */}
-      <DashboardHeader
+      <ThemedDashboardHeader
         industryId="ev"
         title="EV & Connected Mobility"
         subtitle={`EVs: ${evs.length} · Stations: ${stations.length}`}
         status={status}
         onRefresh={refresh}
+        theme={theme}
+        onToggleTheme={() => setTheme(v => v === 'dark' ? 'light' : 'dark')}
+      />
+
+      <ChargingHero
+        photo={evHero}
+        vehicles={evs}
+        stats={[
+          { label: 'Fleet Avg SOC', value: avgSoc, unit: '%', color: '#93c5fd' },
+          { label: 'Charging Now', value: chargingNow, color: '#c4b5fd' },
+          { label: 'Total Charge Power', value: totalPowerKW, unit: 'kW', color: '#fbbf24' },
+          { label: 'Critical Alerts', value: criticalAlerts, color: criticalAlerts > 0 ? '#f87171' : '#4ade80' },
+        ]}
       />
 
       {/* KPIs */}
       <div style={{ display:'flex', gap:12, marginBottom:24, flexWrap:'wrap' }}>
-        <KPICard label="Fleet Avg SOC"        value={avgSoc}         unit="%"    color="#3b82f6" />
-        <KPICard label="EVs Online"           value={evs.length}                 color="#22c55e" />
-        <KPICard label="Charging Now"         value={chargingNow}                color="#8b5cf6" />
-        <KPICard label="Fleet Avg SoH"        value={avgSoH}         unit="%"    color={avgSoH != null && avgSoH < 80 ? '#ef4444' : '#22c55e'}
+        <ThemedKPICard theme={theme} label="Fleet Avg SOC"        value={avgSoc}         unit="%"    color="#3b82f6" />
+        <ThemedKPICard theme={theme} label="EVs Online"           value={evs.length}                 color="#22c55e" />
+        <ThemedKPICard theme={theme} label="Charging Now"         value={chargingNow}                color="#8b5cf6" />
+        <ThemedKPICard theme={theme} label="Fleet Avg SoH"        value={avgSoH}         unit="%"    color={avgSoH != null && avgSoH < 80 ? '#ef4444' : '#22c55e'}
           sub="Battery health (replace at <80%)" />
-        <KPICard label="V2G Fleet Capacity"   value={fleetV2GkWh}    unit="kWh"  color="#06b6d4"
+        <ThemedKPICard theme={theme} label="V2G Fleet Capacity"   value={fleetV2GkWh}    unit="kWh"  color="#06b6d4"
           sub="Grid-exportable energy available" />
-        <KPICard label="Avg C-Rate Stress"    value={avgCRSI}                    color={avgCRSI != null && avgCRSI > 50 ? '#ef4444' : '#f59e0b'}
+        <ThemedKPICard theme={theme} label="Avg C-Rate Stress"    value={avgCRSI}                    color={avgCRSI != null && avgCRSI > 50 ? '#ef4444' : '#f59e0b'}
           sub="Battery abuse index (0–100)" />
-        <KPICard label="Avg TCO/km"           value={avgTCO}         unit="₹"    color="#7c3aed"
+        <ThemedKPICard theme={theme} label="Avg TCO/km"           value={avgTCO}         unit="₹"    color="#7c3aed"
           sub="energy + wear − maintenance" />
-        <KPICard label="Stations Near Capacity" value={stationsNearCapacity}      color={stationsNearCapacity > 0 ? '#f59e0b' : '#22c55e'}
+        <ThemedKPICard theme={theme} label="Stations Near Capacity" value={stationsNearCapacity}      color={stationsNearCapacity > 0 ? '#f59e0b' : '#22c55e'}
           sub={`of ${stations.length} stations`} />
-        <KPICard label="Total Charge Power"   value={totalPowerKW}   unit="kW"   color="#f59e0b" />
-        <KPICard label="Critical Alerts"      value={criticalAlerts}             color="#ef4444" />
+        <ThemedKPICard theme={theme} label="Total Charge Power"   value={totalPowerKW}   unit="kW"   color="#f59e0b" />
+        <ThemedKPICard theme={theme} label="Critical Alerts"      value={criticalAlerts}             color="#ef4444" />
       </div>
 
       <div style={{ display:'grid', gridTemplateColumns: isMobile || isTablet ? '1fr' : '280px 1fr', gap:20, marginBottom:20 }}>

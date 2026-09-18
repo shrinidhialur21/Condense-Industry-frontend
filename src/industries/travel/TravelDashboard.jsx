@@ -11,9 +11,69 @@ import { useCondenseWS } from '../../hooks/useCondenseWS.js';
 import { INDUSTRIES }    from '../../config/industries.js';
 import { useWindowSize } from '../../hooks/useWindowSize.js';
 import {
-  ConnectionStatus, KPICard, AlertFeed, StatusBadge, HealthGauge,
-  DashboardHeader, RefreshButton,
+  AlertFeed, StatusBadge, HealthGauge,
+  THEME, ThemedDashboardHeader, ThemedKPICard, NotConfiguredGuard,
 } from '../../components/shared.jsx';
+import travelHero from '../../assets/industries/travel.jpg';
+
+// Room tile — color comes straight from the real occupied / housekeeping_status
+// fields; a status-change glow pulses briefly instead of a fixed decorative loop.
+function RoomTile({ room }) {
+  const hk = room.housekeeping_status;
+  const color = room.occupied ? '#3b82f6'
+    : hk === 'dirty' || hk === 'inspect' ? '#f87171'
+    : hk === 'cleaning' ? '#fbbf24'
+    : '#4ade80';
+  return (
+    <div title={`Room ${room.room_number ?? room.asset_id}: ${room.occupied ? 'Occupied' : (hk || 'Vacant')}`} style={{
+      width: 16, height: 16, borderRadius: 4, background: color,
+      boxShadow: `0 0 6px ${color}80`,
+    }} />
+  );
+}
+
+// Hero — a live floor-plan grid, one tile per real room, colored by its real
+// occupancy/housekeeping status.
+function PropertyHero({ photo, rooms, stats }) {
+  return (
+    <div style={{ position: 'relative', borderRadius: 16, overflow: 'hidden', marginBottom: 20, minHeight: 240 }}>
+      <img src={photo} alt="Resort" style={{ position: 'absolute', inset: 0, width: '100%', height: '100%', objectFit: 'cover' }} />
+      <div style={{ position: 'absolute', inset: 0, pointerEvents: 'none',
+        background: 'linear-gradient(180deg, rgba(9,14,26,0.2) 0%, rgba(9,14,26,0.45) 45%, rgba(9,14,26,0.85) 100%)' }} />
+      <div style={{ position: 'relative', padding: '20px 24px', display: 'flex', flexDirection: 'column',
+        justifyContent: 'space-between', minHeight: 240, boxSizing: 'border-box' }}>
+        <div style={{ pointerEvents: 'none' }}>
+          <div style={{ display: 'inline-flex', alignItems: 'center', gap: 6, background: 'rgba(11,18,32,0.55)',
+            border: '1px solid rgba(255,255,255,0.18)', borderRadius: 20, padding: '4px 10px', marginBottom: 10 }}>
+            <span style={{ width: 6, height: 6, borderRadius: '50%', background: '#4ade80', boxShadow: '0 0 6px #4ade80' }} />
+            <span style={{ fontSize: 10.5, fontWeight: 700, color: '#e6eaf2', letterSpacing: '0.05em' }}>LIVE PROPERTY VIEW</span>
+          </div>
+          <div style={{ fontFamily: "'Space Grotesk', 'Inter', sans-serif", fontSize: 20, fontWeight: 700, color: '#ffffff' }}>Viva Resorts</div>
+        </div>
+
+        {rooms.length > 0 && (
+          <div style={{ display: 'flex', flexWrap: 'wrap', gap: 4, maxWidth: 480, marginBottom: 12 }}>
+            {rooms.slice(0, 60).map(r => <RoomTile key={r.asset_id} room={r} />)}
+          </div>
+        )}
+
+        <div style={{ display: 'flex', gap: 10, flexWrap: 'wrap', pointerEvents: 'none' }}>
+          {stats.map(s => (
+            <div key={s.label} style={{
+              background: 'rgba(11,18,32,0.6)', backdropFilter: 'blur(4px)',
+              border: '1px solid rgba(255,255,255,0.16)', borderRadius: 10, padding: '8px 14px', minWidth: 92,
+            }}>
+              <div style={{ fontSize: 9.5, color: 'rgba(230,234,242,0.7)', textTransform: 'uppercase', letterSpacing: '0.06em', marginBottom: 3 }}>{s.label}</div>
+              <div style={{ fontFamily: 'monospace', fontSize: 17, fontWeight: 700, color: s.color || '#ffffff' }}>
+                {s.value}{s.unit && <span style={{ fontSize: 11, color: 'rgba(230,234,242,0.6)', marginLeft: 2 }}>{s.unit}</span>}
+              </div>
+            </div>
+          ))}
+        </div>
+      </div>
+    </div>
+  );
+}
 
 const MAX_HISTORY = 60;
 const CFG = INDUSTRIES.travel;
@@ -486,13 +546,16 @@ function SectionHeader({ icon, title, count, color }) {
 // ── Main Dashboard ────────────────────────────────────────────────────────────
 export default function TravelDashboard() {
   const apiUrl = CFG?.apiUrl || '';
-  const { status, assets, alerts } = useCondenseWS(apiUrl);
+  const { status, assets, alerts, refresh } = useCondenseWS(apiUrl);
   const { isMobile, isTablet, isTV } = useWindowSize();
 
   const [selectedId, setSelectedId] = useState(null);
   const [gssHistory,  setGssHistory]  = useState([]);
   const [occHistory,  setOccHistory]  = useState([]);
+  const [theme, setTheme] = useState(() => localStorage.getItem('travel_theme') || 'dark');
   const tick = useRef(0);
+
+  useEffect(() => { localStorage.setItem('travel_theme', theme); }, [theme]);
 
   const allAssets = Object.values(assets);
 
@@ -565,66 +628,66 @@ export default function TravelDashboard() {
 
   // ── Not configured ────────────────────────────────────────────
   if (!apiUrl) {
-    return (
-      <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'center',
-        justifyContent: 'center', minHeight: '70vh', gap: 12, color: '#64748b' }}>
-        <div style={{ fontSize: 48 }}>🏨</div>
-        <div style={{ fontSize: 18, fontWeight: 700, color: '#64748b' }}>Travel & Hospitality</div>
-        <div style={{ fontSize: 13 }}>Set VITE_TRAVEL_API_URL to connect your Condense pipeline</div>
-      </div>
-    );
+    return <NotConfiguredGuard theme={theme} />;
   }
 
+  const t = THEME[theme];
+  const travelCritAlerts = alerts.filter(a => a.severity === 'critical').length;
+
   return (
-    <div style={{ padding: isMobile ? '12px 14px' : isTV ? '28px 40px' : '20px 24px', minHeight: '100vh', background: '#f1f5f9', color: '#1e293b' }}>
+    <div style={{ padding: isMobile ? '12px 14px' : isTV ? '28px 40px' : '20px 24px', minHeight: '100vh', background: t.pageBg, color: t.text }}>
 
       {/* ── Header ── */}
-      <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: 20 }}>
-        <div style={{ display: 'flex', alignItems: 'center', gap: 12 }}>
-          <div style={{
-            width: 38, height: 38, borderRadius: 10,
-            background: 'linear-gradient(135deg, #10b981, #059669)',
-            display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: 20,
-          }}>🏨</div>
-          <div>
-            <div style={{ fontSize: 18, fontWeight: 800, color: '#1e293b' }}>Travel & Hospitality</div>
-            <div style={{ fontSize: 11, color: '#475569' }}>
-              Viva Resorts · RevPAR · GSS · NPS · Energy Efficiency
-            </div>
-          </div>
-        </div>
-        <ConnectionStatus status={status} />
-      </div>
+      <ThemedDashboardHeader
+        industryId="travel"
+        title="Travel & Hospitality"
+        subtitle="Viva Resorts · RevPAR · GSS · NPS · Energy Efficiency"
+        status={status}
+        onRefresh={refresh}
+        theme={theme}
+        onToggleTheme={() => setTheme(v => v === 'dark' ? 'light' : 'dark')}
+      />
+
+      <PropertyHero
+        photo={travelHero}
+        rooms={rooms}
+        stats={[
+          { label: 'Occupancy', value: occupancyPct != null ? occupancyPct : '—', unit: '%', color: '#4ade80' },
+          { label: 'Avg RevPAR', value: avgRevPAR != null ? `$${avgRevPAR.toFixed(0)}` : '—', color: '#93c5fd' },
+          { label: 'Avg GSS', value: avgGSS != null ? avgGSS.toFixed(1) : '—', unit: '/100', color: avgGSS >= 70 ? '#4ade80' : avgGSS >= 50 ? '#fbbf24' : '#f87171' },
+          { label: 'Critical Alerts', value: travelCritAlerts, color: travelCritAlerts > 0 ? '#f87171' : '#4ade80' },
+        ]}
+      />
 
       {/* ── Top KPI Row ── */}
       <div style={{ display: 'flex', gap: 12, flexWrap: 'wrap', marginBottom: 20 }}>
-        <KPICard
+        <ThemedKPICard theme={theme}
           label="Occupancy Rate"
           value={occupancyPct != null ? occupancyPct : '—'}
           unit="%"
           color="#10b981"
           sub={`${occupiedRooms} of ${totalRooms} rooms`}
         />
-        <KPICard
+        <ThemedKPICard theme={theme}
           label="Avg RevPAR"
           value={avgRevPAR != null ? `$${avgRevPAR.toFixed(0)}` : '—'}
           color="#3b82f6"
           sub="Revenue per Available Room"
         />
-        <KPICard
+        <ThemedKPICard theme={theme}
           label="Avg GSS"
           value={avgGSS != null ? avgGSS.toFixed(1) : '—'}
           unit="/ 100"
           color={avgGSS >= 70 ? '#22c55e' : avgGSS >= 50 ? '#f59e0b' : '#ef4444'}
           sub="Guest Satisfaction Score"
         />
-        <KPICard
+        <ThemedKPICard theme={theme}
           label="NPS Score"
           value={npsScore != null ? npsScore : '—'}
           color={npsScore >= 30 ? '#22c55e' : npsScore >= 0 ? '#f59e0b' : '#ef4444'}
           sub={`${npsPromoters}P · ${npsDetractors}D`}
         />
-        <KPICard
+        <ThemedKPICard theme={theme}
           label="Total Revenue Today"
           value={totalRevenueToday > 0 ? `$${Math.round(totalRevenueToday).toLocaleString()}` : '—'}
           color="#f59e0b"

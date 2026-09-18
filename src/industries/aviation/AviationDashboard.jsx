@@ -18,14 +18,97 @@ import { useCondenseWS } from "../../hooks/useCondenseWS.js";
 import { INDUSTRIES } from "../../config/industries.js";
 import { useWindowSize } from "../../hooks/useWindowSize.js";
 import {
-  ConnectionStatus,
-  KPICard,
   AlertFeed,
   StatusBadge,
   HealthGauge,
-  DashboardHeader,
-  RefreshButton,
+  THEME,
+  ThemedDashboardHeader,
+  ThemedKPICard,
+  NotConfiguredGuard,
 } from "../../components/shared.jsx";
+import aviationHero from "../../assets/industries/aviation.jpg";
+
+const GATE_STATUS_COLOR = {
+  boarding: "#4ade80", occupied: "#4ade80", active: "#4ade80",
+  delayed: "#fbbf24", maintenance: "#fbbf24",
+  fault: "#f87171", closed: "#f87171",
+};
+
+// Apron strip — one tile per real gate, colored by its real status field; the
+// plane silhouette only animates taxi-to-runway while a real flight is
+// actually in the "taxiing" state.
+function ApronStrip({ gates, taxiingCount }) {
+  return (
+    <div style={{ position: "relative" }}>
+      <div style={{ display: "flex", flexWrap: "wrap", gap: 5, marginBottom: 8 }}>
+        {gates.slice(0, 24).map((g) => (
+          <div key={g.asset_id} title={`${g.asset_id}: ${g.status || "unknown"}`} style={{
+            width: 26, height: 20, borderRadius: 4,
+            background: GATE_STATUS_COLOR[g.status] || "rgba(255,255,255,0.18)",
+            display: "flex", alignItems: "center", justifyContent: "center",
+            fontSize: 8, fontWeight: 700, color: "#0b1220",
+          }}>
+            {String(g.asset_id).replace(/\D/g, "").slice(-2) || ""}
+          </div>
+        ))}
+      </div>
+      {taxiingCount > 0 && (
+        <div style={{ position: "relative", height: 16 }}>
+          <div style={{ position: "absolute", top: 7, left: 0, right: 0, height: 2, background: "rgba(255,255,255,0.2)" }} />
+          <div style={{
+            position: "absolute", top: 0, fontSize: 14,
+            animation: "condense-taxi 3s linear infinite",
+          }}>✈️</div>
+          <style>{`@keyframes condense-taxi { from { left: 0%; } to { left: calc(100% - 16px); } }`}</style>
+        </div>
+      )}
+    </div>
+  );
+}
+
+// Hero — a real airport photo + an apron strip of real gates + a taxiing
+// plane animation gated on real flight status (see ApronStrip above).
+function ApronHero({ photo, gates, taxiingCount, stats }) {
+  return (
+    <div style={{ position: "relative", borderRadius: 16, overflow: "hidden", marginBottom: 20, minHeight: 240 }}>
+      <img src={photo} alt="Airport apron" style={{ position: "absolute", inset: 0, width: "100%", height: "100%", objectFit: "cover" }} />
+      <div style={{ position: "absolute", inset: 0, pointerEvents: "none",
+        background: "linear-gradient(180deg, rgba(9,14,26,0.2) 0%, rgba(9,14,26,0.4) 45%, rgba(9,14,26,0.85) 100%)" }} />
+      <div style={{ position: "relative", padding: "20px 24px", display: "flex", flexDirection: "column",
+        justifyContent: "space-between", minHeight: 240, boxSizing: "border-box" }}>
+        <div style={{ pointerEvents: "none" }}>
+          <div style={{ display: "inline-flex", alignItems: "center", gap: 6, background: "rgba(11,18,32,0.55)",
+            border: "1px solid rgba(255,255,255,0.18)", borderRadius: 20, padding: "4px 10px", marginBottom: 10 }}>
+            <span style={{ width: 6, height: 6, borderRadius: "50%", background: "#4ade80", boxShadow: "0 0 6px #4ade80" }} />
+            <span style={{ fontSize: 10.5, fontWeight: 700, color: "#e6eaf2", letterSpacing: "0.05em" }}>LIVE APRON VIEW</span>
+          </div>
+          <div style={{ fontFamily: "'Space Grotesk', 'Inter', sans-serif", fontSize: 20, fontWeight: 700, color: "#ffffff" }}>Terminal & Gate Operations</div>
+        </div>
+
+        {gates.length > 0 && (
+          <div style={{ background: "rgba(11,18,32,0.55)", backdropFilter: "blur(4px)", border: "1px solid rgba(255,255,255,0.16)",
+            borderRadius: 10, padding: "10px 14px", marginBottom: 12 }}>
+            <ApronStrip gates={gates} taxiingCount={taxiingCount} />
+          </div>
+        )}
+
+        <div style={{ display: "flex", gap: 10, flexWrap: "wrap", pointerEvents: "none" }}>
+          {stats.map((s) => (
+            <div key={s.label} style={{
+              background: "rgba(11,18,32,0.6)", backdropFilter: "blur(4px)",
+              border: "1px solid rgba(255,255,255,0.16)", borderRadius: 10, padding: "8px 14px", minWidth: 92,
+            }}>
+              <div style={{ fontSize: 9.5, color: "rgba(230,234,242,0.7)", textTransform: "uppercase", letterSpacing: "0.06em", marginBottom: 3 }}>{s.label}</div>
+              <div style={{ fontFamily: "monospace", fontSize: 17, fontWeight: 700, color: s.color || "#ffffff" }}>
+                {s.value}{s.unit && <span style={{ fontSize: 11, color: "rgba(230,234,242,0.6)", marginLeft: 2 }}>{s.unit}</span>}
+              </div>
+            </div>
+          ))}
+        </div>
+      </div>
+    </div>
+  );
+}
 
 const MAX_HISTORY = 40;
 
@@ -226,7 +309,10 @@ export default function AviationDashboard() {
 
   const [selectedAsset, setSelectedAsset] = useState(null);
   const [history, setHistory] = useState([]);
+  const [theme, setTheme] = useState(() => localStorage.getItem('aviation_theme') || 'dark');
   const prevRef = useRef({});
+
+  useEffect(() => { localStorage.setItem('aviation_theme', theme); }, [theme]);
 
   const assetList = Object.values(assets);
   const flights = assetList.filter((a) => a.asset_type === "flight");
@@ -264,6 +350,7 @@ export default function AviationDashboard() {
   const activeFlights = flights.filter((a) =>
     ["boarding", "taxiing", "departed"].includes(a.status)
   ).length;
+  const taxiingCount = flights.filter((a) => a.status === "taxiing").length;
   const delayedCount = flights.filter((a) => a.delay_min > 0).length;
   const onTimePct = flights.length
     ? Math.round((1 - delayedCount / flights.length) * 100)
@@ -298,95 +385,68 @@ export default function AviationDashboard() {
 
   // ── Not configured guard ─────────────────────────────────────────────────────
   if (!industry.apiUrl) {
-    return (
-      <>
-      <div style={{ display:'flex', flexDirection:'column', alignItems:'center',
-        justifyContent:'center', minHeight:'70vh', gap:16, background:'#f8fafc',
-        fontFamily:'system-ui,sans-serif', padding:40 }}>
-        {/* Pulsing signal icon */}
-        <div style={{ position:'relative', width:72, height:72 }}>
-          <div style={{
-            position:'absolute', inset:0, borderRadius:'50%',
-            background:'rgba(37,125,240,0.08)',
-            animation:'ping 2s cubic-bezier(0,0,0.2,1) infinite',
-          }}/>
-          <div style={{
-            position:'relative', width:72, height:72, borderRadius:'50%',
-            background:'rgba(37,125,240,0.12)',
-            display:'flex', alignItems:'center', justifyContent:'center',
-          }}>
-            <svg width="32" height="32" viewBox="0 0 24 24" fill="none">
-              <path d="M3 12h2M19 12h2M12 3v2M12 19v2" stroke="#257df0" strokeWidth="2" strokeLinecap="round"/>
-              <circle cx="12" cy="12" r="3" fill="#257df0" opacity="0.7"/>
-              <path d="M5.6 5.6l1.4 1.4M16.9 16.9l1.4 1.4M5.6 18.4l1.4-1.4M16.9 7.1l1.4-1.4"
-                stroke="#257df0" strokeWidth="2" strokeLinecap="round" opacity="0.4"/>
-            </svg>
-          </div>
-        </div>
-
-        <div style={{ textAlign:'center' }}>
-          <div style={{ fontSize:17, fontWeight:700, color:'#1e293b', marginBottom:6 }}>
-            No Live Data Available
-          </div>
-          <div style={{ fontSize:13, color:'#94a3b8', maxWidth:280, lineHeight:1.6 }}>
-            This pipeline isn't connected yet. Deploy the simulator and processor on Condense to start seeing real-time data.
-          </div>
-        </div>
-
-        <div style={{ display:'flex', alignItems:'center', gap:8, marginTop:4 }}>
-          <span style={{ width:8, height:8, borderRadius:'50%', background:'#cbd5e1', display:'inline-block' }}/>
-          <span style={{ fontSize:12, color:'#94a3b8' }}>Waiting for connection</span>
-        </div>
-      </div>
-      <style>{`@keyframes ping { 75%,100% { transform:scale(2); opacity:0; } }`}</style>
-      </>
-    );
+    return <NotConfiguredGuard theme={theme} />;
   }
+  const t = THEME[theme];
   return (
     <div
       style={{
         padding: isMobile ? "12px 14px" : isTV ? "32px 40px" : "24px 28px",
         minHeight: "100vh",
-        background: "#f1f5f9",
-        color: "#1e293b",
+        background: t.pageBg,
+        color: t.text,
         fontFamily: "system-ui,sans-serif",
       }}
     >
-      <DashboardHeader
+      <ThemedDashboardHeader
         industryId="aviation"
         title="Airports & Aviation"
         subtitle={`Flights: ${flights.length} · Gates: ${gates.length}`}
         status={status}
         onRefresh={refresh}
+        theme={theme}
+        onToggleTheme={() => setTheme(v => v === 'dark' ? 'light' : 'dark')}
+      />
+
+      <ApronHero
+        photo={aviationHero}
+        gates={gates}
+        taxiingCount={taxiingCount}
+        stats={[
+          { label: 'Active Flights', value: activeFlights, color: '#4ade80' },
+          { label: 'On-Time Rate', value: onTimePct, unit: '%', color: onTimePct >= 80 ? '#4ade80' : '#fbbf24' },
+          { label: 'Delayed', value: delayedCount, color: delayedCount > 0 ? '#fbbf24' : '#4ade80' },
+          { label: 'Critical Alerts', value: critAlerts, color: critAlerts > 0 ? '#f87171' : '#4ade80' },
+        ]}
       />
 
       <div
         style={{ display: "flex", gap: 12, marginBottom: 24, flexWrap: "wrap" }}
       >
-        <KPICard label="Active Flights" value={activeFlights} color="#22c55e" />
-        <KPICard
+        <ThemedKPICard theme={theme} label="Active Flights" value={activeFlights} color="#22c55e" />
+        <ThemedKPICard theme={theme}
           label="Total Monitored"
           value={assetList.length}
           color="#06b6d4"
         />
-        <KPICard
+        <ThemedKPICard theme={theme}
           label="On-Time Rate"
           value={onTimePct}
           unit="%"
           color={onTimePct >= 80 ? "#22c55e" : "#f59e0b"}
         />
-        <KPICard
+        <ThemedKPICard theme={theme}
           label="Delayed Flights"
           value={delayedCount}
           color={delayedCount > 0 ? "#f59e0b" : "#22c55e"}
         />
-        <KPICard
+        <ThemedKPICard theme={theme}
           label="Avg Delay"
           value={avgDelay}
           unit=" min"
           color="#f59e0b"
         />
-        <KPICard label="Critical Alerts" value={critAlerts} color="#ef4444" />
+        <ThemedKPICard theme={theme} label="Critical Alerts" value={critAlerts} color="#ef4444" />
       </div>
 
       <div

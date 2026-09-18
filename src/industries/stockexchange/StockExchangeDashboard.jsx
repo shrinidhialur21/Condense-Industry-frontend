@@ -12,9 +12,76 @@ import { useCondenseWS } from '../../hooks/useCondenseWS.js';
 import { INDUSTRIES }    from '../../config/industries.js';
 import { useWindowSize } from '../../hooks/useWindowSize.js';
 import {
-  ConnectionStatus, KPICard, AlertFeed, StatusBadge, HealthGauge,
-  DashboardHeader, RefreshButton,
+  AlertFeed, StatusBadge, HealthGauge,
+  THEME, ThemedDashboardHeader, ThemedKPICard, NotConfiguredGuard,
 } from '../../components/shared.jsx';
+import stockexchangeHero from '../../assets/industries/stockexchange.jpg';
+
+// Ticker tape — one entry per real trading segment, flashing green/red on the
+// real value_dop delta since the last tick. This dataset tracks exchange
+// operations, not per-symbol OHLC, so this replaces literal candlesticks with
+// a ticker built from what's actually real here.
+function TickerTape({ segments, flash, compact }) {
+  const row = segments.length ? [...segments, ...segments] : []; // doubled for seamless scroll
+  return (
+    <div style={{ overflow: 'hidden', whiteSpace: 'nowrap', borderTop: '1px solid rgba(255,255,255,0.12)', borderBottom: '1px solid rgba(255,255,255,0.12)', padding: '8px 0' }}>
+      <div style={{ display: 'inline-flex', gap: 28, animation: segments.length ? 'condense-ticker-scroll 22s linear infinite' : 'none' }}>
+        {row.length === 0 && <span style={{ fontSize: 12, color: 'rgba(230,234,242,0.6)' }}>Waiting for segment data…</span>}
+        {row.map((s, i) => {
+          const dir = flash[s.asset_id];
+          const color = dir === 'up' ? '#4ade80' : dir === 'down' ? '#f87171' : '#e6eaf2';
+          const arrow = dir === 'up' ? '▲' : dir === 'down' ? '▼' : '•';
+          return (
+            <span key={`${s.asset_id}-${i}`} style={{ fontSize: 12.5, fontFamily: 'monospace', color, whiteSpace: 'nowrap' }}>
+              <b>{s.segment_name}</b> {compact(s.trades_count)} trades <span style={{ marginLeft: 4 }}>{arrow} {compact(s.value_dop)} DOP</span>
+            </span>
+          );
+        })}
+      </div>
+      <style>{`@keyframes condense-ticker-scroll { from { transform: translateX(0); } to { transform: translateX(-50%); } }`}</style>
+    </div>
+  );
+}
+
+// Hero — real trading-floor photo + a live ticker tape (see TickerTape above).
+function TradingFloorHero({ photo, badge, title, segments, flash, compact, stats }) {
+  return (
+    <div style={{ position: 'relative', borderRadius: 16, overflow: 'hidden', marginBottom: 20, minHeight: 240 }}>
+      <img src={photo} alt="Trading floor" style={{ position: 'absolute', inset: 0, width: '100%', height: '100%', objectFit: 'cover' }} />
+      <div style={{ position: 'absolute', inset: 0, pointerEvents: 'none',
+        background: 'linear-gradient(180deg, rgba(9,14,26,0.2) 0%, rgba(9,14,26,0.4) 45%, rgba(9,14,26,0.85) 100%)' }} />
+      <div style={{ position: 'relative', padding: '20px 24px', display: 'flex', flexDirection: 'column',
+        justifyContent: 'space-between', minHeight: 240, boxSizing: 'border-box' }}>
+        <div style={{ pointerEvents: 'none' }}>
+          <div style={{ display: 'inline-flex', alignItems: 'center', gap: 6, background: 'rgba(11,18,32,0.55)',
+            border: '1px solid rgba(255,255,255,0.18)', borderRadius: 20, padding: '4px 10px', marginBottom: 10 }}>
+            <span style={{ width: 6, height: 6, borderRadius: '50%', background: '#4ade80', boxShadow: '0 0 6px #4ade80' }} />
+            <span style={{ fontSize: 10.5, fontWeight: 700, color: '#e6eaf2', letterSpacing: '0.05em' }}>{badge}</span>
+          </div>
+          <div style={{ fontFamily: "'Space Grotesk', 'Inter', sans-serif", fontSize: 20, fontWeight: 700, color: '#ffffff' }}>{title}</div>
+        </div>
+
+        <div style={{ marginBottom: 12 }}>
+          <TickerTape segments={segments} flash={flash} compact={compact} />
+        </div>
+
+        <div style={{ display: 'flex', gap: 10, flexWrap: 'wrap', pointerEvents: 'none' }}>
+          {stats.map(s => (
+            <div key={s.label} style={{
+              background: 'rgba(11,18,32,0.6)', backdropFilter: 'blur(4px)',
+              border: '1px solid rgba(255,255,255,0.16)', borderRadius: 10, padding: '8px 14px', minWidth: 92,
+            }}>
+              <div style={{ fontSize: 9.5, color: 'rgba(230,234,242,0.7)', textTransform: 'uppercase', letterSpacing: '0.06em', marginBottom: 3 }}>{s.label}</div>
+              <div style={{ fontFamily: 'monospace', fontSize: 17, fontWeight: 700, color: s.color || '#ffffff' }}>
+                {s.value}{s.unit && <span style={{ fontSize: 11, color: 'rgba(230,234,242,0.6)', marginLeft: 2 }}>{s.unit}</span>}
+              </div>
+            </div>
+          ))}
+        </div>
+      </div>
+    </div>
+  );
+}
 
 const MAX_HISTORY = 60;
 const CONDENSE_BLUE = '#257df0';
@@ -119,7 +186,12 @@ export default function StockExchangeDashboard() {
   const [tpsHistory,    setTpsHistory]    = useState([]);
   const [msiHistory,    setMsiHistory]    = useState([]);
   const [fraudHistory,  setFraudHistory]  = useState([]);
+  const [tickerFlash,   setTickerFlash]   = useState({}); // { [asset_id]: 'up' | 'down' }
+  const [theme, setTheme] = useState(() => localStorage.getItem('stockexchange_theme') || 'dark');
   const prevRef = useRef({});
+  const prevSegValueRef = useRef({});
+
+  useEffect(() => { localStorage.setItem('stockexchange_theme', theme); }, [theme]);
   const tick    = useRef(0);
 
   const allAssets  = Object.values(assets);
@@ -139,6 +211,26 @@ export default function StockExchangeDashboard() {
       setMsiHistory(h => [...h.slice(-MAX_HISTORY + 1), { t, msi: session.kpis.market_stress_index }]);
     if (surv?.kpis?.fraud_risk_score != null)
       setFraudHistory(h => [...h.slice(-MAX_HISTORY + 1), { t, score: surv.kpis.fraud_risk_score }]);
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [assets]);
+
+  // Ticker flash — up/down flag per segment, from the REAL value_dop delta
+  // since the last tick (not a random or timed decorative flash).
+  useEffect(() => {
+    const segs = allAssets.filter(a => a.asset_type === 'trading_segment');
+    if (segs.length === 0) return;
+    const flash = {};
+    let changed = false;
+    segs.forEach(s => {
+      const prev = prevSegValueRef.current[s.asset_id];
+      const cur = s.value_dop ?? 0;
+      if (prev != null && cur !== prev) {
+        flash[s.asset_id] = cur > prev ? 'up' : 'down';
+        changed = true;
+      }
+      prevSegValueRef.current[s.asset_id] = cur;
+    });
+    if (changed) setTickerFlash(flash);
   // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [assets]);
 
@@ -172,88 +264,78 @@ export default function StockExchangeDashboard() {
 
   // ── Not configured guard ────────────────────────────────────────────────────
   if (!industry.apiUrl) {
-    return (
-      <div style={{ display:'flex', flexDirection:'column', alignItems:'center',
-        justifyContent:'center', minHeight:'70vh', gap:16, background:'#f8fafc',
-        fontFamily:'system-ui,sans-serif', padding:40 }}>
-        <div style={{ position:'relative', width:72, height:72 }}>
-          <div style={{ position:'absolute', inset:0, borderRadius:'50%',
-            background:'rgba(37,125,240,0.08)',
-            animation:'ping 2s cubic-bezier(0,0,0.2,1) infinite' }}/>
-          <div style={{ position:'relative', width:72, height:72, borderRadius:'50%',
-            background:'rgba(37,125,240,0.12)',
-            display:'flex', alignItems:'center', justifyContent:'center' }}>
-            <svg width="32" height="32" viewBox="0 0 24 24" fill="none">
-              <path d="M3 12h2M19 12h2M12 3v2M12 19v2" stroke="#257df0" strokeWidth="2" strokeLinecap="round"/>
-              <circle cx="12" cy="12" r="3" fill="#257df0" opacity="0.7"/>
-            </svg>
-          </div>
-        </div>
-        <div style={{ textAlign:'center' }}>
-          <div style={{ fontSize:17, fontWeight:700, color:'#1e293b', marginBottom:6 }}>No Live Data Available</div>
-          <div style={{ fontSize:13, color:'#94a3b8', maxWidth:280, lineHeight:1.6 }}>
-            This pipeline isn't connected yet. Deploy the simulator and processor on Condense to start seeing real-time data.
-          </div>
-        </div>
-        <div style={{ display:'flex', alignItems:'center', gap:8 }}>
-          <span style={{ width:8, height:8, borderRadius:'50%', background:'#cbd5e1', display:'inline-block' }}/>
-          <span style={{ fontSize:12, color:'#94a3b8' }}>Waiting for connection</span>
-        </div>
-      </div>
-    );
+    return <NotConfiguredGuard theme={theme} />;
   }
+  const t = THEME[theme];
   return (
-    <div style={{ padding: isMobile ? '12px 14px' : isTV ? '28px 40px' : '20px 24px', minHeight: '100vh', background: '#f1f5f9',
-      fontFamily: 'system-ui, -apple-system, sans-serif', color: '#1e293b' }}>
+    <div style={{ padding: isMobile ? '12px 14px' : isTV ? '28px 40px' : '20px 24px', minHeight: '100vh', background: t.pageBg,
+      fontFamily: 'system-ui, -apple-system, sans-serif', color: t.text }}>
 
-      <DashboardHeader
+      <ThemedDashboardHeader
         industryId="stockexchange"
         title="Stock Exchange Operations — BVRD"
         subtitle={`Exchange operations · ${session?.session_status === 'open' ? '🟢 Market Open' : '🔴 Market Closed'} · ${allAssets.length} monitors active`}
         status={status}
         onRefresh={refresh}
+        theme={theme}
+        onToggleTheme={() => setTheme(v => v === 'dark' ? 'light' : 'dark')}
+      />
+
+      <TradingFloorHero
+        photo={stockexchangeHero}
+        badge={session?.session_status === 'open' ? 'MARKET OPEN' : 'MARKET CLOSED'}
+        title="Trading Floor Operations"
+        segments={segments}
+        flash={tickerFlash}
+        compact={compact}
+        stats={[
+          { label: 'Trades / Sec', value: fmt(session?.tps, 1), color: '#93c5fd' },
+          { label: 'Participants', value: session?.session_participants ?? '—', color: '#fbbf24' },
+          { label: 'Circuit Breakers', value: session?.session_circuit_breakers ?? '—', color: (session?.session_circuit_breakers ?? 0) > 0 ? '#f87171' : '#4ade80' },
+          { label: 'Critical Alerts', value: critAlerts, color: critAlerts > 0 ? '#f87171' : '#4ade80' },
+        ]}
       />
 
       {/* ── Top KPI strip ── */}
       <div style={{ display: 'flex', gap: 12, flexWrap: 'wrap', marginBottom: 20 }}>
-        <KPICard
+        <ThemedKPICard theme={theme}
           label="Trades / Second"
           value={fmt(session?.tps, 1)}
           color={CONDENSE_BLUE}
           sub={`Avg: ${fmt(sk.avg_tps_10)} · ${sk.throughput_status || '—'}`}
         />
-        <KPICard
+        <ThemedKPICard theme={theme}
           label="Session Trades"
           value={compact(session?.session_total_trades)}
           color="#7c3aed"
           sub={session?.session_total_trades?.toLocaleString() ?? '—'}
         />
-        <KPICard
+        <ThemedKPICard theme={theme}
           label="Session Value (DOP)"
           value={compact(session?.session_total_value_dop)}
           color="#0891b2"
           sub="Total traded value"
         />
-        <KPICard
+        <ThemedKPICard theme={theme}
           label="Order Rejection Rate"
           value={fmt(session?.rejection_rate_pct, 2)}
           unit="%"
           color={session?.rejection_rate_pct > 5 ? '#dc2626' : '#16a34a'}
           sub={`System latency: ${fmt(session?.system_latency_ms, 0)}ms`}
         />
-        <KPICard
+        <ThemedKPICard theme={theme}
           label="Active Participants"
           value={session?.session_participants ?? '—'}
           color="#f59e0b"
           sub="Unique brokers / traders"
         />
-        <KPICard
+        <ThemedKPICard theme={theme}
           label="Circuit Breakers"
           value={session?.session_circuit_breakers ?? '—'}
           color={session?.session_circuit_breakers > 0 ? '#dc2626' : '#16a34a'}
           sub="Trading halts today"
         />
-        <KPICard
+        <ThemedKPICard theme={theme}
           label="Critical Alerts"
           value={critAlerts}
           color={critAlerts > 0 ? '#dc2626' : '#64748b'}
