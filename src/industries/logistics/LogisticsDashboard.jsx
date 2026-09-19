@@ -11,7 +11,7 @@ import { INDUSTRIES }    from '../../config/industries.js';
 import { useWindowSize } from '../../hooks/useWindowSize.js';
 import {
   AlertFeed, StatusBadge, HealthGauge,
-  THEME, ThemedDashboardHeader, ThemedKPICard, NotConfiguredGuard,
+  THEME, ThemedDashboardHeader, ThemedKPICard, NotConfiguredGuard, chartTheme,
 } from '../../components/shared.jsx';
 import logisticsHero from '../../assets/industries/logistics.jpg';
 
@@ -142,7 +142,8 @@ function TempIndicator({ temp, minTemp = 2, maxTemp = 8 }) {
   );
 }
 
-function AssetCard({ asset, selected, onClick }) {
+function AssetCard({ asset, selected, onClick, theme = 'light' }) {
+  const t = THEME[theme];
   const meta      = ASSET_META[asset.asset_type] || { icon: '📦', label: asset.asset_type };
   const health    = asset.kpis?.health_score ?? 100;
   const isCold    = asset.asset_type === 'cold_chain';
@@ -150,14 +151,14 @@ function AssetCard({ asset, selected, onClick }) {
   const slaFail   = asset.on_time === false;
   return (
     <div onClick={onClick} style={{
-      background: selected ? 'rgba(249,115,22,0.08)' : '#ffffff',
-      border: `1px solid ${selected ? 'rgba(249,115,22,0.4)' : '#e2e8f0'}`,
+      background: selected ? 'rgba(249,115,22,0.08)' : t.cardBg,
+      border: `1px solid ${selected ? 'rgba(249,115,22,0.4)' : t.cardBorder}`,
       borderRadius:10, padding:'12px 14px', cursor:'pointer', transition:'all 0.15s'
     }}>
       <div style={{ display:'flex', justifyContent:'space-between', alignItems:'flex-start', marginBottom:6 }}>
         <div>
           <span style={{ fontSize:16, marginRight:6 }}>{meta.icon}</span>
-          <span style={{ fontSize:12, fontWeight:600, color:'#475569' }}>{asset.asset_id}</span>
+          <span style={{ fontSize:12, fontWeight:600, color:t.text }}>{asset.asset_id}</span>
         </div>
         <StatusBadge status={asset.status} />
       </div>
@@ -165,16 +166,16 @@ function AssetCard({ asset, selected, onClick }) {
         <div>
           {asset.speed_kmh != null && (
             <div style={{ fontSize:14, fontWeight:700, color:'#f97316', fontFamily:'monospace' }}>
-              {Math.round(asset.speed_kmh)} <span style={{ fontSize:10, color:'#64748b' }}>km/h</span>
+              {Math.round(asset.speed_kmh)} <span style={{ fontSize:10, color:t.textDim }}>km/h</span>
             </div>
           )}
           {isCold && assetTemp != null && (
             <TempIndicator temp={assetTemp} />
           )}
           {asset.carrier && (
-            <div style={{ fontSize:11, color:'#64748b' }}>{asset.carrier}</div>
+            <div style={{ fontSize:11, color:t.textDim }}>{asset.carrier}</div>
           )}
-          <div style={{ fontSize:10, color:'#475569', marginTop:4 }}>
+          <div style={{ fontSize:10, color:t.textDim, marginTop:4 }}>
             {asset.origin_city && asset.destination_city
               ? `${asset.origin_city} → ${asset.destination_city}`
               : meta.label}
@@ -183,7 +184,7 @@ function AssetCard({ asset, selected, onClick }) {
             )}
           </div>
         </div>
-        <HealthGauge score={health} size={54} />
+        <HealthGauge score={health} size={54} theme={theme} />
       </div>
       {asset.has_alerts && (
         <div style={{ marginTop:6, fontSize:10, color:'#f59e0b',
@@ -583,6 +584,7 @@ export default function LogisticsDashboard() {
     return <NotConfiguredGuard theme={theme} />;
   }
   const t = THEME[theme];
+  const ct = chartTheme(theme);
   return (
     <div style={{ padding: isMobile ? '12px 14px' : isTV ? '32px 40px' : '24px 28px', minHeight:'100vh', background:t.pageBg, color:t.text, fontFamily:'system-ui,sans-serif' }}>
       <ThemedDashboardHeader
@@ -631,16 +633,16 @@ export default function LogisticsDashboard() {
 
       <div style={{ display:'grid', gridTemplateColumns: isMobile || isTablet ? '1fr' : '280px 1fr', gap:20, marginBottom:20 }}>
         <div style={{ display:'flex', flexDirection:'column', gap:8 }}>
-          <div style={{ fontSize:12, fontWeight:600, color:'#64748b', textTransform:'uppercase',
+          <div style={{ fontSize:12, fontWeight:600, color:t.textDim, textTransform:'uppercase',
             letterSpacing:'0.06em', marginBottom:4 }}>Fleet ({assetList.length})</div>
           {assetList.length === 0 ? (
-            <div style={{ textAlign:'center', padding:40, color:'#334155', fontSize:13,
-              border:'1px dashed #cbd5e1', borderRadius:10 }}>
+            <div style={{ textAlign:'center', padding:40, color:t.textDim, fontSize:13,
+              border:`1px dashed ${t.cardBorder}`, borderRadius:10 }}>
               {status === 'connecting' ? 'Connecting…' : 'No assets. Start the simulator.'}
             </div>
           ) : (
             assetList.map(a => (
-              <AssetCard key={a.asset_id} asset={a}
+              <AssetCard key={a.asset_id} asset={a} theme={theme}
                 selected={selectedAsset === a.asset_id}
                 onClick={() => setSelectedAsset(selectedAsset === a.asset_id ? null : a.asset_id)} />
             ))
@@ -650,23 +652,22 @@ export default function LogisticsDashboard() {
         <div style={{ display:'flex', flexDirection:'column', gap:16 }}>
           <div style={{ display:'grid', gridTemplateColumns: isMobile ? '1fr' : '1fr 1fr', gap:16 }}>
             {/* Cold chain temp trend */}
-            <div style={{ background:'#ffffff', border:'1px solid #e2e8f0',
+            <div style={{ background:t.cardBg, border:`1px solid ${t.cardBorder}`,
               borderRadius:12, padding:'16px 20px' }}>
-              <div style={{ fontSize:13, fontWeight:600, color:'#475569', marginBottom:14 }}>
+              <div style={{ fontSize:13, fontWeight:600, color:t.textDim, marginBottom:14 }}>
                 ❄️ Cold Chain Temp & On-Time %
               </div>
               {history.length < 2 ? (
                 <div style={{ height:160, display:'flex', alignItems:'center', justifyContent:'center',
-                  color:'#334155', fontSize:12 }}>Waiting…</div>
+                  color:t.textDim, fontSize:12 }}>Waiting…</div>
               ) : (
                 <ResponsiveContainer width="100%" height={160}>
                   <LineChart data={history} margin={{ top:5, right:10, bottom:5, left:0 }}>
-                    <CartesianGrid strokeDasharray="3 3" stroke="#e2e8f0" />
-                    <XAxis dataKey="time" tick={{ fontSize:9, fill:'#475569' }} tickLine={false} axisLine={false} interval="preserveStartEnd"/>
-                    <YAxis tick={{ fontSize:9, fill:'#475569' }} tickLine={false} axisLine={false} width={35}/>
-                    <Tooltip contentStyle={{ background:'#ffffff', border:'1px solid #e2e8f0',
-                      borderRadius:8, fontSize:11, color:'#1e293b' }}/>
-                    <Legend wrapperStyle={{ fontSize:10, color:'#64748b' }}/>
+                    <CartesianGrid strokeDasharray="3 3" stroke={ct.grid} />
+                    <XAxis dataKey="time" tick={{ fontSize:9, fill:ct.axis }} tickLine={false} axisLine={false} interval="preserveStartEnd"/>
+                    <YAxis tick={{ fontSize:9, fill:ct.axis }} tickLine={false} axisLine={false} width={35}/>
+                    <Tooltip contentStyle={ct.tooltipStyle}/>
+                    <Legend wrapperStyle={{ fontSize:10, color:ct.legend }}/>
                     <Line type="monotone" dataKey="avgTemp"   name="Avg Temp °C"   stroke="#06b6d4" strokeWidth={2} dot={false} isAnimationActive={false}/>
                     <Line type="monotone" dataKey="onTimePct" name="On-Time %"      stroke="#22c55e" strokeWidth={2} dot={false} isAnimationActive={false}/>
                   </LineChart>
@@ -675,18 +676,17 @@ export default function LogisticsDashboard() {
             </div>
 
             {/* Shipment status bar */}
-            <div style={{ background:'#ffffff', border:'1px solid #e2e8f0',
+            <div style={{ background:t.cardBg, border:`1px solid ${t.cardBorder}`,
               borderRadius:12, padding:'16px 20px' }}>
-              <div style={{ fontSize:13, fontWeight:600, color:'#475569', marginBottom:14 }}>
+              <div style={{ fontSize:13, fontWeight:600, color:t.textDim, marginBottom:14 }}>
                 Shipment Status Breakdown
               </div>
               <ResponsiveContainer width="100%" height={160}>
                 <BarChart data={statusCounts} margin={{ top:5, right:10, bottom:5, left:0 }}>
-                  <CartesianGrid strokeDasharray="3 3" stroke="#e2e8f0" />
-                  <XAxis dataKey="status" tick={{ fontSize:9, fill:'#475569' }} tickLine={false} axisLine={false}/>
-                  <YAxis tick={{ fontSize:9, fill:'#475569' }} tickLine={false} axisLine={false} width={30}/>
-                  <Tooltip contentStyle={{ background:'#ffffff', border:'1px solid #e2e8f0',
-                    borderRadius:8, fontSize:11, color:'#1e293b' }}/>
+                  <CartesianGrid strokeDasharray="3 3" stroke={ct.grid} />
+                  <XAxis dataKey="status" tick={{ fontSize:9, fill:ct.axis }} tickLine={false} axisLine={false}/>
+                  <YAxis tick={{ fontSize:9, fill:ct.axis }} tickLine={false} axisLine={false} width={30}/>
+                  <Tooltip contentStyle={ct.tooltipStyle}/>
                   <Bar dataKey="count" name="Count" fill="#f97316" radius={[4,4,0,0]} isAnimationActive={false}/>
                 </BarChart>
               </ResponsiveContainer>
@@ -694,14 +694,14 @@ export default function LogisticsDashboard() {
           </div>
 
           {selectedObj && DetailComp && (
-            <div style={{ background:'#ffffff', border:'1px solid #e2e8f0',
+            <div style={{ background:t.cardBg, border:`1px solid ${t.cardBorder}`,
               borderRadius:12, padding:'16px 20px' }}>
               <div style={{ display:'flex', justifyContent:'space-between', marginBottom:14 }}>
-                <div style={{ fontSize:13, fontWeight:600, color:'#475569' }}>
+                <div style={{ fontSize:13, fontWeight:600, color:t.textDim }}>
                   {ASSET_META[selectedObj.asset_type]?.icon ?? '📦'} {selectedObj.asset_id}
                   <span style={{ marginLeft:8 }}><StatusBadge status={selectedObj.status} /></span>
                 </div>
-                <span style={{ fontSize:10, color:'#475569' }}>
+                <span style={{ fontSize:10, color:t.textDim }}>
                   {selectedObj.processed_at && new Date(selectedObj.processed_at).toLocaleTimeString()}
                 </span>
               </div>
@@ -711,7 +711,7 @@ export default function LogisticsDashboard() {
         </div>
       </div>
 
-      <AlertFeed alerts={alerts} maxHeight={240} />
+      <AlertFeed alerts={alerts} maxHeight={240} theme={theme} />
     </div>
   );
 }

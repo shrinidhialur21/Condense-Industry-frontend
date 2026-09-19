@@ -25,6 +25,7 @@ import {
   ThemedDashboardHeader,
   ThemedKPICard,
   NotConfiguredGuard,
+  chartTheme,
 } from "../../components/shared.jsx";
 import healthcareHero from "../../assets/industries/healthcare.jpg";
 
@@ -107,9 +108,10 @@ const ASSET_META = {
 };
 
 // Vital sign indicator with normal range
-function VitalSign({ label, value, unit, low, high }) {
+function VitalSign({ label, value, unit, low, high, theme = 'light' }) {
+  const t = THEME[theme];
   const inRange = value != null && value >= low && value <= high;
-  const color = value == null ? "#64748b" : inRange ? "#22c55e" : "#ef4444";
+  const color = value == null ? t.textDim : inRange ? "#22c55e" : "#ef4444";
   return (
     <div
       style={{
@@ -117,7 +119,7 @@ function VitalSign({ label, value, unit, low, high }) {
         flexDirection: "column",
         alignItems: "center",
         padding: "8px 12px",
-        background: "#f8fafc",
+        background: t.pageBg,
         borderRadius: 8,
         border: `1px solid ${color}30`,
       }}
@@ -125,7 +127,7 @@ function VitalSign({ label, value, unit, low, high }) {
       <div
         style={{
           fontSize: 9,
-          color: "#64748b",
+          color: t.textDim,
           marginBottom: 3,
           textTransform: "uppercase",
           letterSpacing: "0.05em",
@@ -148,12 +150,13 @@ function VitalSign({ label, value, unit, low, high }) {
             : value
           : "—"}
       </div>
-      <div style={{ fontSize: 9, color: "#475569", marginTop: 2 }}>{unit}</div>
+      <div style={{ fontSize: 9, color: t.textFaint, marginTop: 2 }}>{unit}</div>
     </div>
   );
 }
 
-function AssetCard({ asset, selected, onClick }) {
+function AssetCard({ asset, selected, onClick, theme = 'light' }) {
+  const t = THEME[theme];
   const meta = ASSET_META[asset.asset_type] || {
     icon: "🏥",
     label: asset.asset_type,
@@ -168,13 +171,13 @@ function AssetCard({ asset, selected, onClick }) {
           ? "rgba(239,68,68,0.08)"
           : isCritical
           ? "rgba(239,68,68,0.04)"
-          : "rgba(255,255,255,0.03)",
+          : t.cardBg,
         border: `1px solid ${
           selected
             ? "rgba(239,68,68,0.5)"
             : isCritical
             ? "rgba(239,68,68,0.25)"
-            : "#e2e8f0"
+            : t.cardBorder
         }`,
         borderRadius: 10,
         padding: "12px 14px",
@@ -192,11 +195,11 @@ function AssetCard({ asset, selected, onClick }) {
       >
         <div>
           <span style={{ fontSize: 16, marginRight: 6 }}>{meta.icon}</span>
-          <span style={{ fontSize: 12, fontWeight: 600, color: "#475569" }}>
+          <span style={{ fontSize: 12, fontWeight: 600, color: t.text }}>
             {asset.patient_id || asset.asset_id}
           </span>
           {asset.ward && (
-            <span style={{ fontSize: 10, color: "#64748b", marginLeft: 6 }}>
+            <span style={{ fontSize: 10, color: t.textDim, marginLeft: 6 }}>
               {asset.ward}
             </span>
           )}
@@ -230,6 +233,7 @@ function AssetCard({ asset, selected, onClick }) {
               unit="bpm"
               low={60}
               high={100}
+              theme={theme}
             />
           )}
           {asset.spo2_pct != null && (
@@ -239,6 +243,7 @@ function AssetCard({ asset, selected, onClick }) {
               unit="%"
               low={95}
               high={100}
+              theme={theme}
             />
           )}
           {asset.bp_systolic_mmhg != null && (
@@ -248,6 +253,7 @@ function AssetCard({ asset, selected, onClick }) {
               unit="mmHg"
               low={90}
               high={140}
+              theme={theme}
             />
           )}
         </div>
@@ -259,8 +265,8 @@ function AssetCard({ asset, selected, onClick }) {
           alignItems: "center",
         }}
       >
-        <div style={{ fontSize: 10, color: "#475569" }}>{meta.label}</div>
-        <HealthGauge score={health} size={48} />
+        <div style={{ fontSize: 10, color: t.textDim }}>{meta.label}</div>
+        <HealthGauge score={health} size={48} theme={theme} />
       </div>
       {asset.has_alerts && (
         <div
@@ -518,6 +524,7 @@ export default function HealthcareDashboard() {
     return <NotConfiguredGuard theme={theme} />;
   }
   const t = THEME[theme];
+  const ct = chartTheme(theme);
   return (
     <div
       style={{
@@ -615,7 +622,7 @@ export default function HealthcareDashboard() {
             style={{
               fontSize: 12,
               fontWeight: 600,
-              color: "#64748b",
+              color: t.textDim,
               textTransform: "uppercase",
               letterSpacing: "0.06em",
               marginBottom: 4,
@@ -628,9 +635,9 @@ export default function HealthcareDashboard() {
               style={{
                 textAlign: "center",
                 padding: 40,
-                color: "#334155",
+                color: t.textFaint,
                 fontSize: 13,
-                border: "1px dashed rgba(255,255,255,0.06)",
+                border: `1px dashed ${t.cardBorder}`,
                 borderRadius: 10,
               }}
             >
@@ -644,6 +651,7 @@ export default function HealthcareDashboard() {
                 key={a.asset_id}
                 asset={a}
                 selected={selectedAsset === a.asset_id}
+                theme={theme}
                 onClick={() =>
                   setSelectedAsset(
                     selectedAsset === a.asset_id ? null : a.asset_id
@@ -658,8 +666,8 @@ export default function HealthcareDashboard() {
           {/* Vitals trend */}
           <div
             style={{
-              background: "#ffffff",
-              border: "1px solid #e2e8f0",
+              background: t.cardBg,
+              border: `1px solid ${t.cardBorder}`,
               borderRadius: 12,
               padding: "16px 20px",
             }}
@@ -668,7 +676,7 @@ export default function HealthcareDashboard() {
               style={{
                 fontSize: 13,
                 fontWeight: 600,
-                color: "#475569",
+                color: t.textDim,
                 marginBottom: 14,
               }}
             >
@@ -681,7 +689,7 @@ export default function HealthcareDashboard() {
                   display: "flex",
                   alignItems: "center",
                   justifyContent: "center",
-                  color: "#334155",
+                  color: t.textFaint,
                   fontSize: 12,
                 }}
               >
@@ -693,31 +701,25 @@ export default function HealthcareDashboard() {
                   data={history}
                   margin={{ top: 5, right: 10, bottom: 5, left: 0 }}
                 >
-                  <CartesianGrid strokeDasharray="3 3" stroke="#e2e8f0" />
+                  <CartesianGrid strokeDasharray="3 3" stroke={ct.grid} />
                   <XAxis
                     dataKey="time"
-                    tick={{ fontSize: 10, fill: "#475569" }}
+                    tick={{ fontSize: 10, fill: ct.axis }}
                     tickLine={false}
                     axisLine={false}
                     interval="preserveStartEnd"
                   />
                   <YAxis
-                    tick={{ fontSize: 10, fill: "#475569" }}
+                    tick={{ fontSize: 10, fill: ct.axis }}
                     tickLine={false}
                     axisLine={false}
                     width={40}
                   />
                   <Tooltip
-                    contentStyle={{
-                      background: "#ffffff",
-                      border: "1px solid #e2e8f0",
-                      borderRadius: 8,
-                      fontSize: 11,
-                      color: "#1e293b",
-                    }}
-                    labelStyle={{ color: "#64748b" }}
+                    contentStyle={ct.tooltipStyle}
+                    labelStyle={{ color: ct.legend }}
                   />
-                  <Legend wrapperStyle={{ fontSize: 11, color: "#64748b" }} />
+                  <Legend wrapperStyle={{ fontSize: 11, color: ct.legend }} />
                   <Line
                     type="monotone"
                     dataKey="avgHR"
@@ -745,8 +747,8 @@ export default function HealthcareDashboard() {
           {selectedObj && DetailComp && (
             <div
               style={{
-                background: "#ffffff",
-                border: "1px solid #e2e8f0",
+                background: t.cardBg,
+                border: `1px solid ${t.cardBorder}`,
                 borderRadius: 12,
                 padding: "16px 20px",
               }}
@@ -759,13 +761,13 @@ export default function HealthcareDashboard() {
                 }}
               >
                 <div
-                  style={{ fontSize: 13, fontWeight: 600, color: "#475569" }}
+                  style={{ fontSize: 13, fontWeight: 600, color: t.textDim }}
                 >
                   {ASSET_META[selectedObj.asset_type]?.icon ?? "🏥"}&nbsp;
                   {selectedObj.patient_id || selectedObj.asset_id}
                   {selectedObj.ward && (
                     <span
-                      style={{ fontSize: 11, color: "#64748b", marginLeft: 6 }}
+                      style={{ fontSize: 11, color: t.textDim, marginLeft: 6 }}
                     >
                       {selectedObj.ward}
                     </span>
@@ -789,7 +791,7 @@ export default function HealthcareDashboard() {
                     )}
                   </span>
                 </div>
-                <span style={{ fontSize: 10, color: "#475569" }}>
+                <span style={{ fontSize: 10, color: t.textFaint }}>
                   {selectedObj.processed_at &&
                     new Date(selectedObj.processed_at).toLocaleTimeString()}
                 </span>
@@ -800,7 +802,7 @@ export default function HealthcareDashboard() {
         </div>
       </div>
 
-      <AlertFeed alerts={alerts} maxHeight={260} />
+      <AlertFeed alerts={alerts} maxHeight={260} theme={theme} />
     </div>
   );
 }

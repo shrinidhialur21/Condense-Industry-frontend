@@ -13,7 +13,7 @@ import { INDUSTRIES }    from '../../config/industries.js';
 import { useWindowSize } from '../../hooks/useWindowSize.js';
 import {
   AlertFeed, StatusBadge, HealthGauge,
-  THEME, ThemedDashboardHeader, ThemedKPICard, NotConfiguredGuard,
+  THEME, ThemedDashboardHeader, ThemedKPICard, NotConfiguredGuard, chartTheme,
 } from '../../components/shared.jsx';
 import stockexchangeHero from '../../assets/industries/stockexchange.jpg';
 
@@ -122,8 +122,9 @@ function RiskBadge({ level }) {
   );
 }
 
-function MetricGauge({ value, max = 100, color, size = 64 }) {
+function MetricGauge({ value, max = 100, color, size = 64, theme = 'light' }) {
   if (value == null) return null;
+  const t     = THEME[theme];
   const pct   = Math.min(100, Math.max(0, value / max * 100));
   const r     = size / 2 - 6;
   const circ  = Math.PI * r;
@@ -132,7 +133,7 @@ function MetricGauge({ value, max = 100, color, size = 64 }) {
   return (
     <svg width={size} height={size / 2 + 8} style={{ overflow: 'visible' }}>
       <path d={`M 6 ${size/2} A ${r} ${r} 0 0 1 ${size-6} ${size/2}`}
-        fill="none" stroke="#e2e8f0" strokeWidth={5} strokeLinecap="round" />
+        fill="none" stroke={t.cardBorder} strokeWidth={5} strokeLinecap="round" />
       <path d={`M 6 ${size/2} A ${r} ${r} 0 0 1 ${size-6} ${size/2}`}
         fill="none" stroke={c} strokeWidth={5} strokeLinecap="round"
         strokeDasharray={`${fill} ${circ}`} />
@@ -145,15 +146,16 @@ function MetricGauge({ value, max = 100, color, size = 64 }) {
 }
 
 // ── Section panel ─────────────────────────────────────────────────────────────
-function Panel({ title, children, accent }) {
+function Panel({ title, children, accent, theme = 'light' }) {
+  const t = THEME[theme];
   return (
     <div style={{
-      background: '#ffffff', border: `1px solid ${accent || '#e2e8f0'}`,
+      background: t.cardBg, border: `1px solid ${accent || t.cardBorder}`,
       borderTop: `3px solid ${accent || CONDENSE_BLUE}`,
       borderRadius: 12, padding: 16,
-      boxShadow: '0 1px 4px rgba(15,32,68,0.06)',
+      boxShadow: theme === 'dark' ? 'none' : '0 1px 4px rgba(15,32,68,0.06)',
     }}>
-      <div style={{ fontSize: 12, fontWeight: 700, color: '#475569',
+      <div style={{ fontSize: 12, fontWeight: 700, color: t.textDim,
         textTransform: 'uppercase', letterSpacing: '0.08em', marginBottom: 14 }}>
         {title}
       </div>
@@ -162,16 +164,17 @@ function Panel({ title, children, accent }) {
   );
 }
 
-function StatRow({ label, value, sub, valueColor }) {
+function StatRow({ label, value, sub, valueColor, theme = 'light' }) {
+  const t = THEME[theme];
   return (
     <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'baseline',
-      padding: '6px 0', borderBottom: '1px solid #f8fafc' }}>
-      <span style={{ fontSize: 12, color: '#64748b' }}>{label}</span>
+      padding: '6px 0', borderBottom: `1px solid ${t.cardBorder}` }}>
+      <span style={{ fontSize: 12, color: t.textDim }}>{label}</span>
       <div style={{ textAlign: 'right' }}>
-        <span style={{ fontSize: 13, fontWeight: 700, color: valueColor || '#1e293b', fontFamily: 'monospace' }}>
+        <span style={{ fontSize: 13, fontWeight: 700, color: valueColor || t.text, fontFamily: 'monospace' }}>
           {value ?? '—'}
         </span>
-        {sub && <div style={{ fontSize: 10, color: '#94a3b8' }}>{sub}</div>}
+        {sub && <div style={{ fontSize: 10, color: t.textFaint }}>{sub}</div>}
       </div>
     </div>
   );
@@ -267,6 +270,7 @@ export default function StockExchangeDashboard() {
     return <NotConfiguredGuard theme={theme} />;
   }
   const t = THEME[theme];
+  const ct = chartTheme(theme);
   return (
     <div style={{ padding: isMobile ? '12px 14px' : isTV ? '28px 40px' : '20px 24px', minHeight: '100vh', background: t.pageBg,
       fontFamily: 'system-ui, -apple-system, sans-serif', color: t.text }}>
@@ -347,24 +351,24 @@ export default function StockExchangeDashboard() {
       <div style={{ display: 'grid', gridTemplateColumns: isMobile ? '1fr' : isTablet ? '1fr 1fr' : '1fr 1fr 1fr', gap: 16, marginBottom: 16 }}>
 
         {/* Market Stress Index */}
-        <Panel title="Market Stress Index" accent="#dc2626">
+        <Panel title="Market Stress Index" accent="#dc2626" theme={theme}>
           <div style={{ display: 'flex', alignItems: 'center', gap: 16, marginBottom: 14 }}>
-            <MetricGauge value={sk.market_stress_index} color={
+            <MetricGauge value={sk.market_stress_index} theme={theme} color={
               sk.market_stress_index >= 80 ? '#dc2626' :
               sk.market_stress_index >= 60 ? '#d97706' : '#16a34a'
             } size={72} />
             <div>
               <div style={{ fontSize: 26, fontWeight: 800, fontFamily: 'monospace',
-                color: sk.market_stress_index >= 60 ? '#dc2626' : '#1e293b' }}>
+                color: sk.market_stress_index >= 60 ? '#dc2626' : t.text }}>
                 {fmt(sk.market_stress_index, 0)}
               </div>
               <RiskBadge level={sk.msi_status} />
             </div>
           </div>
-          <StatRow label="Rejection contrib"   value={`${fmt(sk.msi_rejection_contrib)}pts`} />
-          <StatRow label="Latency contrib"     value={`${fmt(sk.msi_latency_contrib)}pts`} />
-          <StatRow label="Circuit contrib"     value={`${fmt(sk.msi_circuit_contrib)}pts`} />
-          <StatRow label="Settlement contrib"  value={`${fmt(sk.msi_settlement_contrib)}pts`} />
+          <StatRow label="Rejection contrib"   value={`${fmt(sk.msi_rejection_contrib)}pts`} theme={theme} />
+          <StatRow label="Latency contrib"     value={`${fmt(sk.msi_latency_contrib)}pts`} theme={theme} />
+          <StatRow label="Circuit contrib"     value={`${fmt(sk.msi_circuit_contrib)}pts`} theme={theme} />
+          <StatRow label="Settlement contrib"  value={`${fmt(sk.msi_settlement_contrib)}pts`} theme={theme} />
           <ResponsiveContainer width="100%" height={70} style={{ marginTop: 10 }}>
             <AreaChart data={msiHistory}>
               <defs>
@@ -376,36 +380,36 @@ export default function StockExchangeDashboard() {
               <XAxis dataKey="t" hide /> <YAxis hide domain={[0, 100]} />
               <ReferenceLine y={60} stroke="#dc2626" strokeDasharray="3 2" strokeOpacity={0.4} />
               <Area dataKey="msi" stroke="#dc2626" fill="url(#msiGrad)" dot={false} strokeWidth={1.5} />
-              <Tooltip contentStyle={{ background: '#fff', border: '1px solid #e2e8f0', borderRadius: 6, fontSize: 11 }} />
+              <Tooltip contentStyle={ct.tooltipStyle} />
             </AreaChart>
           </ResponsiveContainer>
         </Panel>
 
         {/* Order Flow Imbalance */}
-        <Panel title="Order Flow & Trading Activity" accent={CONDENSE_BLUE}>
+        <Panel title="Order Flow & Trading Activity" accent={CONDENSE_BLUE} theme={theme}>
           {/* OFI bar */}
           <div style={{ marginBottom: 12 }}>
             <div style={{ display: 'flex', justifyContent: 'space-between', marginBottom: 4 }}>
-              <span style={{ fontSize: 11, color: '#64748b' }}>Order Flow Imbalance</span>
+              <span style={{ fontSize: 11, color: t.textDim }}>Order Flow Imbalance</span>
               <RiskBadge level={sk.ofi_signal === 'buy_pressure' ? 'low' : sk.ofi_signal === 'sell_pressure' ? 'elevated' : 'normal'} />
             </div>
-            <div style={{ display: 'flex', height: 10, borderRadius: 5, overflow: 'hidden', background: '#f1f5f9' }}>
+            <div style={{ display: 'flex', height: 10, borderRadius: 5, overflow: 'hidden', background: t.cardBorder }}>
               <div style={{ width: `${sk.buy_pct || 50}%`, background: '#16a34a' }} />
               <div style={{ flex: 1, background: '#dc2626' }} />
             </div>
-            <div style={{ display: 'flex', justifyContent: 'space-between', marginTop: 3, fontSize: 10, color: '#64748b' }}>
+            <div style={{ display: 'flex', justifyContent: 'space-between', marginTop: 3, fontSize: 10, color: t.textDim }}>
               <span>🟢 Buy {fmt(sk.buy_pct, 0)}%</span>
-              <span style={{ fontWeight: 700, fontSize: 12, color: '#1e293b', fontFamily: 'monospace' }}>
+              <span style={{ fontWeight: 700, fontSize: 12, color: t.text, fontFamily: 'monospace' }}>
                 OFI {sk.ofi != null ? (sk.ofi > 0 ? '+' : '') + fmt(sk.ofi, 1) : '—'}
               </span>
               <span>🔴 Sell {fmt(sk.sell_pct, 0)}%</span>
             </div>
           </div>
 
-          <StatRow label="Trades this tick"     value={session?.trades_this_tick?.toLocaleString()} />
-          <StatRow label="Avg TPS (10 ticks)"   value={fmt(sk.avg_tps_10)}      sub="trades/sec" />
-          <StatRow label="TPS trend"             value={sk.tps_trend}           valueColor={sk.tps_trend === 'rising' ? '#0891b2' : sk.tps_trend === 'falling' ? '#d97706' : '#475569'} />
-          <StatRow label="Throughput health"     value={`${fmt(sk.throughput_health_pct, 0)}%`} valueColor={sk.throughput_health_pct >= 80 ? '#dc2626' : '#16a34a'} />
+          <StatRow label="Trades this tick"     value={session?.trades_this_tick?.toLocaleString()} theme={theme} />
+          <StatRow label="Avg TPS (10 ticks)"   value={fmt(sk.avg_tps_10)}      sub="trades/sec" theme={theme} />
+          <StatRow label="TPS trend"             value={sk.tps_trend}           valueColor={sk.tps_trend === 'rising' ? '#0891b2' : sk.tps_trend === 'falling' ? '#d97706' : t.textDim} theme={theme} />
+          <StatRow label="Throughput health"     value={`${fmt(sk.throughput_health_pct, 0)}%`} valueColor={sk.throughput_health_pct >= 80 ? '#dc2626' : '#16a34a'} theme={theme} />
 
           <ResponsiveContainer width="100%" height={70} style={{ marginTop: 10 }}>
             <AreaChart data={tpsHistory}>
@@ -417,31 +421,31 @@ export default function StockExchangeDashboard() {
               </defs>
               <XAxis dataKey="t" hide /> <YAxis hide />
               <Area dataKey="tps" stroke={CONDENSE_BLUE} fill="url(#tpsGrad)" dot={false} strokeWidth={1.5} />
-              <Tooltip contentStyle={{ background: '#fff', border: '1px solid #e2e8f0', borderRadius: 6, fontSize: 11 }} />
+              <Tooltip contentStyle={ct.tooltipStyle} />
             </AreaChart>
           </ResponsiveContainer>
         </Panel>
 
         {/* Settlement Risk */}
-        <Panel title="Settlement & Clearing" accent="#7c3aed">
+        <Panel title="Settlement & Clearing" accent="#7c3aed" theme={theme}>
           <div style={{ display: 'flex', alignItems: 'center', gap: 14, marginBottom: 14 }}>
-            <MetricGauge value={sk.settlement_risk_score}
+            <MetricGauge value={sk.settlement_risk_score} theme={theme}
               color={sk.settlement_risk_score >= 70 ? '#dc2626' : sk.settlement_risk_score >= 40 ? '#d97706' : '#16a34a'}
               size={72} />
             <div>
-              <div style={{ fontSize: 13, color: '#64748b' }}>Settlement Risk</div>
+              <div style={{ fontSize: 13, color: t.textDim }}>Settlement Risk</div>
               <RiskBadge level={sk.settlement_risk_level} />
             </div>
           </div>
           <StatRow label="T+2 Compliance"       value={`${fmt(sk.t2_compliance_pct, 2)}%`}
-            valueColor={sk.t2_compliance_pct < 99 ? '#dc2626' : '#16a34a'} />
+            valueColor={sk.t2_compliance_pct < 99 ? '#dc2626' : '#16a34a'} theme={theme} />
           <StatRow label="Failed (session)"     value={session?.session_failed_settlement ?? '—'}
-            valueColor={session?.session_failed_settlement > 0 ? '#dc2626' : '#16a34a'} />
-          <StatRow label="Pending queue"        value={session?.pending_settlement} sub="T+2 queue" />
-          <StatRow label="Queue pressure"       value={`${fmt(sk.settlement_queue_pressure, 0)}%`} />
+            valueColor={session?.session_failed_settlement > 0 ? '#dc2626' : '#16a34a'} theme={theme} />
+          <StatRow label="Pending queue"        value={session?.pending_settlement} sub="T+2 queue" theme={theme} />
+          <StatRow label="Queue pressure"       value={`${fmt(sk.settlement_queue_pressure, 0)}%`} theme={theme} />
           <StatRow label="System latency"       value={`${fmt(session?.system_latency_ms, 0)}ms`}
-            valueColor={session?.system_latency_ms > 100 ? '#dc2626' : '#16a34a'} />
-          <StatRow label="Latency status"       value={sk.latency_status} />
+            valueColor={session?.system_latency_ms > 100 ? '#dc2626' : '#16a34a'} theme={theme} />
+          <StatRow label="Latency status"       value={sk.latency_status} theme={theme} />
         </Panel>
       </div>
 
@@ -449,19 +453,19 @@ export default function StockExchangeDashboard() {
       <div style={{ display: 'grid', gridTemplateColumns: isMobile ? '1fr' : '1fr 1fr', gap: 16, marginBottom: 16 }}>
 
         {/* Surveillance & Fraud Detection */}
-        <Panel title="Market Surveillance & Fraud Detection" accent="#ef4444">
+        <Panel title="Market Surveillance & Fraud Detection" accent="#ef4444" theme={theme}>
           <div style={{ display: 'flex', alignItems: 'center', gap: 16, marginBottom: 14 }}>
-            <MetricGauge value={fk.fraud_risk_score}
+            <MetricGauge value={fk.fraud_risk_score} theme={theme}
               color={fk.fraud_risk_score >= 70 ? '#dc2626' : fk.fraud_risk_score >= 40 ? '#d97706' : '#16a34a'}
               size={72} />
             <div>
               <div style={{ fontSize: 22, fontWeight: 800, fontFamily: 'monospace',
-                color: fk.fraud_risk_score >= 40 ? '#dc2626' : '#1e293b' }}>
-                {fmt(fk.fraud_risk_score, 0)}<span style={{ fontSize: 12, color: '#94a3b8', marginLeft: 4 }}>/100</span>
+                color: fk.fraud_risk_score >= 40 ? '#dc2626' : t.text }}>
+                {fmt(fk.fraud_risk_score, 0)}<span style={{ fontSize: 12, color: t.textFaint, marginLeft: 4 }}>/100</span>
               </div>
               <RiskBadge level={fk.fraud_risk_level} />
               {fk.dominant_alert_type && (
-                <div style={{ fontSize: 10, color: '#94a3b8', marginTop: 4 }}>
+                <div style={{ fontSize: 10, color: t.textFaint, marginTop: 4 }}>
                   Top: {fk.dominant_alert_type.replace('_', ' ')}
                 </div>
               )}
@@ -477,13 +481,13 @@ export default function StockExchangeDashboard() {
               { label: 'Insider Trading', value: fk.insider_trading_flags, weight: '×4.0', color: '#7c3aed' },
               { label: 'Escalated',       value: fk.alerts_escalated,      weight: '',     color: '#64748b' },
             ].map(item => (
-              <div key={item.label} style={{ background: '#f8fafc', borderRadius: 8, padding: '8px 10px',
-                borderLeft: `3px solid ${item.value > 0 ? item.color : '#e2e8f0'}` }}>
-                <div style={{ fontSize: 9, color: '#64748b', textTransform: 'uppercase', letterSpacing: '0.06em' }}>
-                  {item.label} <span style={{ color: '#94a3b8' }}>{item.weight}</span>
+              <div key={item.label} style={{ background: theme === 'dark' ? 'rgba(255,255,255,0.03)' : '#f8fafc', borderRadius: 8, padding: '8px 10px',
+                borderLeft: `3px solid ${item.value > 0 ? item.color : t.cardBorder}` }}>
+                <div style={{ fontSize: 9, color: t.textDim, textTransform: 'uppercase', letterSpacing: '0.06em' }}>
+                  {item.label} <span style={{ color: t.textFaint }}>{item.weight}</span>
                 </div>
                 <div style={{ fontSize: 18, fontWeight: 800, fontFamily: 'monospace',
-                  color: item.value > 0 ? item.color : '#cbd5e1' }}>
+                  color: item.value > 0 ? item.color : t.textFaint }}>
                   {item.value ?? '—'}
                 </div>
               </div>
@@ -501,13 +505,13 @@ export default function StockExchangeDashboard() {
               <XAxis dataKey="t" hide /> <YAxis hide domain={[0, 100]} />
               <ReferenceLine y={40} stroke="#ef4444" strokeDasharray="3 2" strokeOpacity={0.4} />
               <Area dataKey="score" stroke="#ef4444" fill="url(#fraudGrad)" dot={false} strokeWidth={1.5} />
-              <Tooltip contentStyle={{ background: '#fff', border: '1px solid #e2e8f0', borderRadius: 6, fontSize: 11 }} />
+              <Tooltip contentStyle={ct.tooltipStyle} />
             </AreaChart>
           </ResponsiveContainer>
         </Panel>
 
         {/* Trading Segments */}
-        <Panel title="Trading Segments" accent="#0891b2">
+        <Panel title="Trading Segments" accent="#0891b2" theme={theme}>
           {segments.length > 0 ? (
             <>
               <div style={{ marginBottom: 12 }}>
@@ -515,10 +519,10 @@ export default function StockExchangeDashboard() {
                   const k = s.kpis || {};
                   return (
                     <div key={s.asset_id} style={{ display: 'flex', justifyContent: 'space-between',
-                      alignItems: 'center', padding: '8px 0', borderBottom: '1px solid #f1f5f9' }}>
+                      alignItems: 'center', padding: '8px 0', borderBottom: `1px solid ${t.cardBorder}` }}>
                       <div>
-                        <div style={{ fontSize: 12, fontWeight: 600, color: '#1e293b' }}>{s.segment_name}</div>
-                        <div style={{ fontSize: 10, color: '#94a3b8' }}>
+                        <div style={{ fontSize: 12, fontWeight: 600, color: t.text }}>{s.segment_name}</div>
+                        <div style={{ fontSize: 10, color: t.textFaint }}>
                           Top: {s.top_security} ({fmt(s.top_security_pct, 0)}%)
                           {' · '}<RiskBadge level={k.concentration_risk === 'high' ? 'elevated' : 'normal'} />
                         </div>
@@ -527,7 +531,7 @@ export default function StockExchangeDashboard() {
                         <div style={{ fontSize: 14, fontWeight: 700, color: CONDENSE_BLUE, fontFamily: 'monospace' }}>
                           {s.trades_count?.toLocaleString()}
                         </div>
-                        <div style={{ fontSize: 10, color: '#94a3b8' }}>
+                        <div style={{ fontSize: 10, color: t.textFaint }}>
                           {compact(s.value_dop)} DOP
                         </div>
                       </div>
@@ -537,16 +541,16 @@ export default function StockExchangeDashboard() {
               </div>
               <ResponsiveContainer width="100%" height={90}>
                 <BarChart data={segBarData} barSize={20}>
-                  <CartesianGrid strokeDasharray="3 3" stroke="#f1f5f9" vertical={false} />
-                  <XAxis dataKey="name" tick={{ fill: '#94a3b8', fontSize: 9 }} />
+                  <CartesianGrid strokeDasharray="3 3" stroke={ct.grid} vertical={false} />
+                  <XAxis dataKey="name" tick={{ fill: ct.axis, fontSize: 9 }} />
                   <YAxis hide />
-                  <Tooltip contentStyle={{ background: '#fff', border: '1px solid #e2e8f0', borderRadius: 6, fontSize: 11 }} />
+                  <Tooltip contentStyle={ct.tooltipStyle} />
                   <Bar dataKey="trades" fill={CONDENSE_BLUE} radius={[3, 3, 0, 0]} />
                 </BarChart>
               </ResponsiveContainer>
             </>
           ) : (
-            <div style={{ color: '#94a3b8', fontSize: 12, textAlign: 'center', padding: 24 }}>
+            <div style={{ color: t.textFaint, fontSize: 12, textAlign: 'center', padding: 24 }}>
               No segment data yet
             </div>
           )}
@@ -555,11 +559,11 @@ export default function StockExchangeDashboard() {
 
       {/* ── Broker Activity ── */}
       {brokers.length > 0 && (
-        <div style={{ marginBottom: 16, background: '#ffffff', border: '1px solid #e2e8f0',
+        <div style={{ marginBottom: 16, background: t.cardBg, border: `1px solid ${t.cardBorder}`,
           borderTop: `3px solid ${flaggedBrokers > 0 ? '#dc2626' : '#f59e0b'}`,
-          borderRadius: 12, padding: 16, boxShadow: '0 1px 4px rgba(15,32,68,0.06)' }}>
+          borderRadius: 12, padding: 16, boxShadow: theme === 'dark' ? 'none' : '0 1px 4px rgba(15,32,68,0.06)' }}>
           <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 14 }}>
-            <div style={{ fontSize: 12, fontWeight: 700, color: '#475569',
+            <div style={{ fontSize: 12, fontWeight: 700, color: t.textDim,
               textTransform: 'uppercase', letterSpacing: '0.08em' }}>
               Broker / Dealer Activity
             </div>
@@ -574,11 +578,11 @@ export default function StockExchangeDashboard() {
           <div style={{ overflowX: 'auto' }}>
             <table style={{ width: '100%', borderCollapse: 'collapse', fontSize: 12 }}>
               <thead>
-                <tr style={{ background: '#f8fafc' }}>
+                <tr style={{ background: theme === 'dark' ? 'rgba(255,255,255,0.03)' : '#f8fafc' }}>
                   {['Broker', 'Trades Today', 'Value (DOP)', 'Rejection %', 'Anomaly Score', 'Status'].map(h => (
                     <th key={h} style={{ padding: '7px 10px', textAlign: 'left', fontSize: 10,
-                      fontWeight: 600, color: '#64748b', textTransform: 'uppercase', letterSpacing: '0.06em',
-                      borderBottom: '1px solid #e2e8f0', whiteSpace: 'nowrap' }}>
+                      fontWeight: 600, color: t.textDim, textTransform: 'uppercase', letterSpacing: '0.06em',
+                      borderBottom: `1px solid ${t.cardBorder}`, whiteSpace: 'nowrap' }}>
                       {h}
                     </th>
                   ))}
@@ -591,31 +595,31 @@ export default function StockExchangeDashboard() {
                     const bk = b.kpis || {};
                     const isRisk = bk.broker_anomaly_score >= 60 || b.is_flagged;
                     return (
-                      <tr key={b.asset_id} style={{ background: isRisk ? '#fff7f7' : 'transparent',
-                        borderBottom: '1px solid #f1f5f9' }}>
-                        <td style={{ padding: '8px 10px', fontWeight: 600, color: '#1e293b' }}>
+                      <tr key={b.asset_id} style={{ background: isRisk ? 'rgba(220,38,38,0.08)' : 'transparent',
+                        borderBottom: `1px solid ${t.cardBorder}` }}>
+                        <td style={{ padding: '8px 10px', fontWeight: 600, color: t.text }}>
                           {b.broker_name}
                         </td>
-                        <td style={{ padding: '8px 10px', fontFamily: 'monospace', color: '#1e293b' }}>
+                        <td style={{ padding: '8px 10px', fontFamily: 'monospace', color: t.text }}>
                           {b.trades_today?.toLocaleString()}
                         </td>
-                        <td style={{ padding: '8px 10px', fontFamily: 'monospace', color: '#475569' }}>
+                        <td style={{ padding: '8px 10px', fontFamily: 'monospace', color: t.textDim }}>
                           {compact(b.value_today_dop)}
                         </td>
                         <td style={{ padding: '8px 10px', fontFamily: 'monospace',
-                          color: b.rejection_rate_pct > 5 ? '#dc2626' : '#475569' }}>
+                          color: b.rejection_rate_pct > 5 ? '#dc2626' : t.textDim }}>
                           {fmt(b.rejection_rate_pct, 2)}%
                         </td>
                         <td style={{ padding: '8px 10px' }}>
                           <div style={{ display: 'flex', alignItems: 'center', gap: 6 }}>
-                            <div style={{ width: 60, height: 6, borderRadius: 3, background: '#f1f5f9', overflow: 'hidden' }}>
+                            <div style={{ width: 60, height: 6, borderRadius: 3, background: t.cardBorder, overflow: 'hidden' }}>
                               <div style={{
                                 height: '100%', borderRadius: 3,
                                 width: `${Math.min(100, bk.broker_anomaly_score || 0)}%`,
                                 background: bk.broker_anomaly_score >= 60 ? '#dc2626' : bk.broker_anomaly_score >= 30 ? '#d97706' : '#16a34a',
                               }} />
                             </div>
-                            <span style={{ fontFamily: 'monospace', fontSize: 11 }}>
+                            <span style={{ fontFamily: 'monospace', fontSize: 11, color: t.text }}>
                               {fmt(bk.broker_anomaly_score, 0)}
                             </span>
                           </div>
@@ -633,7 +637,7 @@ export default function StockExchangeDashboard() {
       )}
 
       {/* ── Alert Feed ── */}
-      <AlertFeed alerts={alerts} maxHeight={260} />
+      <AlertFeed alerts={alerts} maxHeight={260} theme={theme} />
     </div>
   );
 }

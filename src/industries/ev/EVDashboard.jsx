@@ -12,7 +12,7 @@ import { INDUSTRIES }    from '../../config/industries.js';
 import { useWindowSize } from '../../hooks/useWindowSize.js';
 import {
   AlertFeed, StatusBadge, HealthGauge,
-  THEME, ThemedDashboardHeader, ThemedKPICard, NotConfiguredGuard,
+  THEME, ThemedDashboardHeader, ThemedKPICard, NotConfiguredGuard, chartTheme,
 } from '../../components/shared.jsx';
 import evHero from '../../assets/industries/ev.jpg';
 
@@ -107,20 +107,21 @@ function SocRing({ soc = 0, size = 54 }) {
 }
 
 // ── Asset card ─────────────────────────────────────────────────
-function AssetCard({ asset, selected, onClick }) {
+function AssetCard({ asset, selected, onClick, theme = 'light' }) {
+  const t = THEME[theme];
   const meta    = ASSET_META[asset.asset_type] || { icon: '📡', label: asset.asset_type };
   const primary = asset[meta.primaryKey];
   const health  = asset.kpis?.health_score ?? 100;
   return (
     <div onClick={onClick} style={{
-      background: selected ? 'rgba(59,130,246,0.08)' : '#ffffff',
-      border: `1px solid ${selected ? 'rgba(59,130,246,0.4)' : '#e2e8f0'}`,
+      background: selected ? 'rgba(59,130,246,0.08)' : t.cardBg,
+      border: `1px solid ${selected ? 'rgba(59,130,246,0.4)' : t.cardBorder}`,
       borderRadius: 10, padding: '12px 14px', cursor: 'pointer', transition: 'all 0.15s'
     }}>
       <div style={{ display:'flex', justifyContent:'space-between', alignItems:'flex-start', marginBottom:8 }}>
         <div>
           <span style={{ fontSize:16, marginRight:6 }}>{meta.icon}</span>
-          <span style={{ fontSize:12, fontWeight:600, color:'#475569' }}>{asset.asset_id}</span>
+          <span style={{ fontSize:12, fontWeight:600, color: t.text }}>{asset.asset_id}</span>
         </div>
         <StatusBadge status={asset.status} />
       </div>
@@ -132,12 +133,12 @@ function AssetCard({ asset, selected, onClick }) {
             <div style={{ fontSize:18, fontWeight:700, color:'#3b82f6',
               fontFamily:'monospace', lineHeight:1 }}>
               {primary != null ? Number(primary).toFixed(1) : '—'}
-              <span style={{ fontSize:10, color:'#64748b', marginLeft:3 }}>{meta.primaryUnit}</span>
+              <span style={{ fontSize:10, color: t.textDim, marginLeft:3 }}>{meta.primaryUnit}</span>
             </div>
           )}
-          <div style={{ fontSize:10, color:'#475569', marginTop:4 }}>{meta.label}</div>
+          <div style={{ fontSize:10, color: t.textDim, marginTop:4 }}>{meta.label}</div>
         </div>
-        <HealthGauge score={health} size={54} />
+        <HealthGauge score={health} size={54} theme={theme} />
       </div>
       {asset.has_alerts && (
         <div style={{ marginTop:8, fontSize:10, color:'#f59e0b',
@@ -452,6 +453,7 @@ export default function EVDashboard() {
     return <NotConfiguredGuard theme={theme} />;
   }
   const t = THEME[theme];
+  const ct = chartTheme(theme);
   return (
     <div style={{ padding: isMobile ? '12px 14px' : isTV ? '32px 40px' : '24px 28px', minHeight:'100vh', background:t.pageBg, color:t.text, fontFamily:'system-ui,sans-serif' }}>
       {/* Header */}
@@ -498,16 +500,16 @@ export default function EVDashboard() {
       <div style={{ display:'grid', gridTemplateColumns: isMobile || isTablet ? '1fr' : '280px 1fr', gap:20, marginBottom:20 }}>
         {/* Asset list */}
         <div style={{ display:'flex', flexDirection:'column', gap:8 }}>
-          <div style={{ fontSize:12, fontWeight:600, color:'#64748b', textTransform:'uppercase',
+          <div style={{ fontSize:12, fontWeight:600, color:t.textDim, textTransform:'uppercase',
             letterSpacing:'0.06em', marginBottom:4 }}>Fleet ({assetList.length})</div>
           {assetList.length === 0 ? (
-            <div style={{ textAlign:'center', padding:40, color:'#334155', fontSize:13,
-              border:'1px dashed #cbd5e1', borderRadius:10 }}>
+            <div style={{ textAlign:'center', padding:40, color:t.textDim, fontSize:13,
+              border:`1px dashed ${t.cardBorder}`, borderRadius:10 }}>
               {status === 'connecting' ? 'Connecting to pipeline…' : 'No assets. Start the simulator.'}
             </div>
           ) : (
             assetList.map(asset => (
-              <AssetCard key={asset.asset_id} asset={asset}
+              <AssetCard key={asset.asset_id} asset={asset} theme={theme}
                 selected={selectedAsset === asset.asset_id}
                 onClick={() => setSelectedAsset(selectedAsset === asset.asset_id ? null : asset.asset_id)} />
             ))
@@ -517,14 +519,14 @@ export default function EVDashboard() {
         {/* Charts + detail */}
         <div style={{ display:'flex', flexDirection:'column', gap:16 }}>
           {/* SOC + Power trend */}
-          <div style={{ background:'#ffffff', border:'1px solid #e2e8f0',
+          <div style={{ background:t.cardBg, border:`1px solid ${t.cardBorder}`,
             borderRadius:12, padding:'16px 20px' }}>
-            <div style={{ fontSize:13, fontWeight:600, color:'#475569', marginBottom:14 }}>
+            <div style={{ fontSize:13, fontWeight:600, color:t.textDim, marginBottom:14 }}>
               Fleet Avg SOC & Charging Power
             </div>
             {history.length < 2 ? (
               <div style={{ height:180, display:'flex', alignItems:'center', justifyContent:'center',
-                color:'#334155', fontSize:12 }}>Waiting for data stream…</div>
+                color:t.textDim, fontSize:12 }}>Waiting for data stream…</div>
             ) : (
               <ResponsiveContainer width="100%" height={200}>
                 <AreaChart data={history} margin={{ top:5, right:10, bottom:5, left:0 }}>
@@ -538,12 +540,11 @@ export default function EVDashboard() {
                       <stop offset="95%" stopColor="#f59e0b" stopOpacity={0}/>
                     </linearGradient>
                   </defs>
-                  <CartesianGrid strokeDasharray="3 3" stroke="#e2e8f0" />
-                  <XAxis dataKey="time" tick={{ fontSize:10, fill:'#475569' }} tickLine={false} axisLine={false} interval="preserveStartEnd"/>
-                  <YAxis tick={{ fontSize:10, fill:'#475569' }} tickLine={false} axisLine={false} width={40}/>
-                  <Tooltip contentStyle={{ background:'#ffffff', border:'1px solid #e2e8f0',
-                    borderRadius:8, fontSize:11, color:'#1e293b' }} labelStyle={{ color:'#64748b' }}/>
-                  <Legend wrapperStyle={{ fontSize:11, color:'#64748b' }}/>
+                  <CartesianGrid strokeDasharray="3 3" stroke={ct.grid} />
+                  <XAxis dataKey="time" tick={{ fontSize:10, fill:ct.axis }} tickLine={false} axisLine={false} interval="preserveStartEnd"/>
+                  <YAxis tick={{ fontSize:10, fill:ct.axis }} tickLine={false} axisLine={false} width={40}/>
+                  <Tooltip contentStyle={ct.tooltipStyle} labelStyle={{ color:ct.axis }}/>
+                  <Legend wrapperStyle={{ fontSize:11, color:ct.legend }}/>
                   <Area type="monotone" dataKey="avgSoc"     name="Avg SOC %"       stroke="#3b82f6" fill="url(#gSoc)" strokeWidth={1.5} dot={false} isAnimationActive={false}/>
                   <Area type="monotone" dataKey="totalPower" name="Charge Power kW"  stroke="#f59e0b" fill="url(#gPow)" strokeWidth={1.5} dot={false} isAnimationActive={false}/>
                 </AreaChart>
@@ -553,14 +554,14 @@ export default function EVDashboard() {
 
           {/* Asset detail */}
           {selectedObj && DetailComp && (
-            <div style={{ background:'#ffffff', border:'1px solid #e2e8f0',
+            <div style={{ background:t.cardBg, border:`1px solid ${t.cardBorder}`,
               borderRadius:12, padding:'16px 20px' }}>
               <div style={{ display:'flex', justifyContent:'space-between', marginBottom:14 }}>
-                <div style={{ fontSize:13, fontWeight:600, color:'#475569' }}>
+                <div style={{ fontSize:13, fontWeight:600, color:t.textDim }}>
                   {ASSET_META[selectedObj.asset_type]?.icon} {selectedObj.asset_id}
                   <span style={{ marginLeft:8 }}><StatusBadge status={selectedObj.status} /></span>
                 </div>
-                <span style={{ fontSize:10, color:'#475569' }}>
+                <span style={{ fontSize:10, color:t.textDim }}>
                   {selectedObj.processed_at && new Date(selectedObj.processed_at).toLocaleTimeString()}
                 </span>
               </div>
@@ -570,7 +571,7 @@ export default function EVDashboard() {
         </div>
       </div>
 
-      <AlertFeed alerts={alerts} maxHeight={240} />
+      <AlertFeed alerts={alerts} maxHeight={240} theme={theme} />
     </div>
   );
 }

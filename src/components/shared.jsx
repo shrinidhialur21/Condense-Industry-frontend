@@ -85,15 +85,16 @@ export function KPICard({ label, value, unit, trend, color = '#0284c7', sub }) {
 }
 
 // ── Health score gauge (simple arc) ──────────────────────────
-export function HealthGauge({ score = 0, size = 80 }) {
+export function HealthGauge({ score = 0, size = 80, theme = 'light' }) {
   const r = (size / 2) - 8;
   const circ = Math.PI * r; // half circle
   const fill = (score / 100) * circ;
   const color = score >= 70 ? '#16a34a' : score >= 40 ? '#d97706' : '#dc2626';
+  const track = theme === 'dark' ? '#2a3654' : '#e2e8f0';
   return (
     <svg width={size} height={size / 2 + 10} style={{ overflow:'visible' }}>
       <path d={`M 8 ${size/2} A ${r} ${r} 0 0 1 ${size-8} ${size/2}`}
-        fill="none" stroke="#e2e8f0" strokeWidth={6} strokeLinecap="round"/>
+        fill="none" stroke={track} strokeWidth={6} strokeLinecap="round"/>
       <path d={`M 8 ${size/2} A ${r} ${r} 0 0 1 ${size-8} ${size/2}`}
         fill="none" stroke={color} strokeWidth={6} strokeLinecap="round"
         strokeDasharray={`${fill} ${circ}`}/>
@@ -141,25 +142,27 @@ export function InfoTooltip({ text }) {
 }
 
 // ── Alert row ─────────────────────────────────────────────────
-export function AlertRow({ alert }) {
+export function AlertRow({ alert, theme = 'light' }) {
+  const t = THEME[theme];
+  const dark = theme === 'dark';
   const sevColor = {
     critical: '#ef4444',
     warning:  '#f59e0b',
     info:     '#3b82f6',
   }[alert.severity] || '#64748b';
 
-  const sevBg = {
+  const sevBg = dark ? 'transparent' : ({
     critical: '#fff7f7',
     warning:  '#fffbeb',
     info:     '#eff6ff',
-  }[alert.severity] || '#ffffff';
+  }[alert.severity] || '#ffffff');
 
   const assetId = alert.asset_id || alert.source_asset || alert.assetId;
 
   return (
     <div style={{
       display:'flex', gap:10, alignItems:'flex-start',
-      padding:'10px 14px', borderBottom:'1px solid #f1f5f9',
+      padding:'10px 14px', borderBottom:`1px solid ${dark ? t.cardBorder : '#f1f5f9'}`,
       fontSize:12, background: sevBg,
     }}>
       {/* Severity indicator */}
@@ -186,12 +189,12 @@ export function AlertRow({ alert }) {
             {assetId}
           </span>
         )}
-        <div style={{ color:'#1e293b', lineHeight:1.4 }}>{alert.message}</div>
-        <div style={{ color:'#64748b', marginTop:3, display:'flex', gap:8, flexWrap:'wrap' }}>
+        <div style={{ color: t.text, lineHeight:1.4 }}>{alert.message}</div>
+        <div style={{ color: t.textDim, marginTop:3, display:'flex', gap:8, flexWrap:'wrap' }}>
           {alert.rule_id && <span style={{ fontFamily:'monospace', fontSize:10 }}>{alert.rule_id}</span>}
           <span style={{ fontSize:10 }}>{new Date(alert.timestamp).toLocaleTimeString()}</span>
           {alert.recommended_action && (
-            <span style={{ color:'#7c3aed', fontSize:10 }}>→ {alert.recommended_action}</span>
+            <span style={{ color: dark ? '#c4b5fd' : '#7c3aed', fontSize:10 }}>→ {alert.recommended_action}</span>
           )}
         </div>
       </div>
@@ -200,9 +203,11 @@ export function AlertRow({ alert }) {
 }
 
 // ── Alert feed panel ──────────────────────────────────────────
-export function AlertFeed({ alerts, maxHeight = 300 }) {
+export function AlertFeed({ alerts, maxHeight = 300, theme = 'light' }) {
   const [filter, setFilter] = useState('all');
   const sevOptions = ['all', 'critical', 'warning', 'info'];
+  const t = THEME[theme];
+  const dark = theme === 'dark';
 
   const filtered = filter === 'all'
     ? alerts
@@ -213,26 +218,26 @@ export function AlertFeed({ alerts, maxHeight = 300 }) {
 
   return (
     <div style={{
-      background:'#ffffff', border:'1px solid #e2e8f0',
+      background: t.cardBg, border: `1px solid ${t.cardBorder}`,
       borderRadius:12, overflow:'hidden',
-      boxShadow:'0 1px 4px rgba(15,32,68,0.06)',
+      boxShadow: dark ? 'none' : '0 1px 4px rgba(15,32,68,0.06)',
     }}>
-      <div style={{ padding:'12px 16px', borderBottom:'1px solid #f1f5f9',
+      <div style={{ padding:'12px 16px', borderBottom:`1px solid ${dark ? t.cardBorder : '#f1f5f9'}`,
         display:'flex', alignItems:'center', justifyContent:'space-between',
-        background: critCount > 0 ? '#fff7f7' : '#ffffff',
+        background: critCount > 0 ? (dark ? 'rgba(239,68,68,0.08)' : '#fff7f7') : t.cardBg,
       }}>
-        <span style={{ fontSize:13, fontWeight:700, color:'#1e293b', display:'flex', alignItems:'center', gap:8 }}>
-          🔔 Alerts
+        <span style={{ fontSize:13, fontWeight:700, color: t.text, display:'flex', alignItems:'center', gap:8 }}>
+          Alerts
           {critCount > 0 && (
             <span style={{ fontSize:10, fontWeight:700, padding:'2px 7px', borderRadius:20,
-              background:'#fee2e2', color:'#dc2626' }}>{critCount} critical</span>
+              background: dark ? 'rgba(239,68,68,0.18)' : '#fee2e2', color: dark ? '#f87171' : '#dc2626' }}>{critCount} critical</span>
           )}
           {warnCount > 0 && (
             <span style={{ fontSize:10, fontWeight:700, padding:'2px 7px', borderRadius:20,
-              background:'#fef3c7', color:'#d97706' }}>{warnCount} warning</span>
+              background: dark ? 'rgba(245,158,11,0.18)' : '#fef3c7', color: dark ? '#fbbf24' : '#d97706' }}>{warnCount} warning</span>
           )}
-          <span style={{ fontSize:11, color:'#94a3b8',
-            background:'#f1f5f9', padding:'2px 6px', borderRadius:4 }}>
+          <span style={{ fontSize:11, color: t.textDim,
+            background: dark ? t.pageBg : '#f1f5f9', padding:'2px 6px', borderRadius:4 }}>
             {filtered.length}
           </span>
         </span>
@@ -240,10 +245,10 @@ export function AlertFeed({ alerts, maxHeight = 300 }) {
           {sevOptions.map(s => (
             <button key={s} onClick={() => setFilter(s)} style={{
               fontSize:10, padding:'3px 9px', borderRadius:6,
-              border: filter === s ? '1px solid #cbd5e1' : '1px solid transparent',
+              border: filter === s ? `1px solid ${dark ? t.cardBorder : '#cbd5e1'}` : '1px solid transparent',
               cursor:'pointer',
-              background: filter === s ? '#f8fafc' : 'transparent',
-              color: filter === s ? '#1e293b' : '#94a3b8',
+              background: filter === s ? (dark ? t.pageBg : '#f8fafc') : 'transparent',
+              color: filter === s ? t.text : t.textFaint,
               fontWeight: filter === s ? 600 : 400,
               textTransform:'uppercase', letterSpacing:'0.06em'
             }}>{s}</button>
@@ -252,11 +257,11 @@ export function AlertFeed({ alerts, maxHeight = 300 }) {
       </div>
       <div style={{ maxHeight, overflowY:'auto' }}>
         {filtered.length === 0 ? (
-          <div style={{ padding:24, textAlign:'center', color:'#94a3b8', fontSize:12 }}>
-            ✅ No alerts
+          <div style={{ padding:24, textAlign:'center', color: t.textDim, fontSize:12 }}>
+            No alerts
           </div>
         ) : (
-          [...filtered].reverse().map((a, i) => <AlertRow key={i} alert={a} />)
+          [...filtered].reverse().map((a, i) => <AlertRow key={i} alert={a} theme={theme} />)
         )}
       </div>
     </div>
@@ -372,6 +377,34 @@ export const THEME = {
     cardBg: '#ffffff', cardBorder: '#e2e8f0', accent: CONDENSE_BLUE,
   },
 };
+
+// Recharts styling tokens — pass into CartesianGrid/XAxis/YAxis/Tooltip/Legend
+// so charts stop being hardcoded light and actually match the page theme.
+export function chartTheme(theme) {
+  const dark = theme === 'dark';
+  return {
+    grid: dark ? 'rgba(255,255,255,0.08)' : '#e2e8f0',
+    axis: dark ? '#8b96b3' : '#475569',
+    tooltipStyle: {
+      background: dark ? '#141d33' : '#ffffff',
+      border: `1px solid ${dark ? '#2a3654' : '#e2e8f0'}`,
+      borderRadius: 8, fontSize: 11,
+      color: dark ? '#e6eaf2' : '#1e293b',
+    },
+    legend: dark ? '#8b96b3' : '#64748b',
+  };
+}
+
+// Card/panel wrapper for a chart, asset list, or detail block — themed
+// background + border, replacing the hardcoded white cards these used to be.
+export function ThemedPanel({ theme, style, children }) {
+  const t = THEME[theme];
+  return (
+    <div style={{ background: t.cardBg, border: `1px solid ${t.cardBorder}`, borderRadius: 12, ...style }}>
+      {children}
+    </div>
+  );
+}
 
 export function ThemeToggle({ theme, onToggle }) {
   const t = THEME[theme];

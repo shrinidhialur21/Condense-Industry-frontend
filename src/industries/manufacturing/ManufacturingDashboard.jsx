@@ -11,7 +11,7 @@ import { useCondenseWS } from '../../hooks/useCondenseWS.js';
 import { INDUSTRIES }    from '../../config/industries.js';
 import { useWindowSize } from '../../hooks/useWindowSize.js';
 import {
-  ConnectionStatus, AlertFeed, StatusBadge, HealthGauge, RefreshButton, InfoTooltip,
+  ConnectionStatus, AlertFeed, StatusBadge, HealthGauge, RefreshButton, InfoTooltip, chartTheme,
   THEME, ThemeToggle, ThemedKPICard,
 } from '../../components/shared.jsx';
 import manufacturingHero from '../../assets/industries/manufacturing.jpg';
@@ -165,7 +165,8 @@ function OEEDisplay({ oee = 0, availability = 0, performance = 0, quality = 0 })
   );
 }
 
-function AssetCard({ asset, selected, onClick }) {
+function AssetCard({ asset, selected, onClick, theme = 'light' }) {
+  const t = THEME[theme];
   const meta     = ASSET_META[asset.asset_type] || { icon: '🔩', label: asset.asset_type };
   const health   = asset.kpis?.health_score ?? 100;
   const oee      = asset.kpis?.oee_pct ?? null;
@@ -174,15 +175,15 @@ function AssetCard({ asset, selected, onClick }) {
   const faultType = asset.kpis?.fault_diagnosis;
   return (
     <div onClick={onClick} style={{
-      background: selected ? 'rgba(139,92,246,0.08)' : '#ffffff',
-      border: `1px solid ${selected ? 'rgba(139,92,246,0.4)' : '#e2e8f0'}`,
+      background: selected ? 'rgba(139,92,246,0.08)' : t.cardBg,
+      border: `1px solid ${selected ? 'rgba(139,92,246,0.4)' : t.cardBorder}`,
       borderRadius:10, padding:'12px 14px', cursor:'pointer', transition:'all 0.15s'
     }}>
       <div style={{ display:'flex', justifyContent:'space-between', alignItems:'flex-start', marginBottom:8 }}>
         <div>
           <span style={{ fontSize:16, marginRight:6 }}>{isRotary ? (MACHINE_TYPE_ICON[asset.machine_type] || meta.icon) : meta.icon}</span>
-          <span style={{ fontSize:12, fontWeight:600, color:'#475569' }}>{asset.asset_id}</span>
-          {isRotary && <span style={{ fontSize:10, color:'#94a3b8', marginLeft:6 }}>{asset.machine_type}</span>}
+          <span style={{ fontSize:12, fontWeight:600, color:t.text }}>{asset.asset_id}</span>
+          {isRotary && <span style={{ fontSize:10, color:t.textFaint, marginLeft:6 }}>{asset.machine_type}</span>}
         </div>
         <StatusBadge status={asset.status} />
       </div>
@@ -190,11 +191,11 @@ function AssetCard({ asset, selected, onClick }) {
         <div>
           {isRotary ? (
             <div>
-              <span style={{ fontSize:11, fontWeight:800, color: zone ? ISO_ZONE_COLOR[zone] : '#64748b',
-                background: zone ? `${ISO_ZONE_COLOR[zone]}18` : '#f1f5f9', padding:'1px 7px', borderRadius:4 }}>
+              <span style={{ fontSize:11, fontWeight:800, color: zone ? ISO_ZONE_COLOR[zone] : t.textDim,
+                background: zone ? `${ISO_ZONE_COLOR[zone]}18` : (theme==='dark'?t.pageBg:'#f1f5f9'), padding:'1px 7px', borderRadius:4 }}>
                 Zone {zone || '—'}
               </span>
-              <div style={{ fontSize:12, color:'#64748b', marginTop:4 }}>
+              <div style={{ fontSize:12, color:t.textDim, marginTop:4 }}>
                 {asset.vibration_rms_velocity_mms != null ? `${asset.vibration_rms_velocity_mms.toFixed(2)} mm/s` : '—'}
               </div>
             </div>
@@ -204,10 +205,10 @@ function AssetCard({ asset, selected, onClick }) {
               performance={asset.performance_pct ?? 0}
               quality={asset.quality_pct ?? 0} />
           ) : (
-            <div style={{ fontSize:12, color:'#64748b' }}>{meta.label}</div>
+            <div style={{ fontSize:12, color:t.textDim }}>{meta.label}</div>
           )}
         </div>
-        <HealthGauge score={health} size={54} />
+        <HealthGauge score={health} size={54} theme={theme} />
       </div>
       {asset.vibration_g > 4 && (
         <div style={{ marginTop:8, fontSize:10, color:'#ef4444',
@@ -740,6 +741,7 @@ export default function ManufacturingDashboard() {
   }
 
   const t = THEME[theme];
+  const ct = chartTheme(theme);
   const heroStats = isVibration
     ? [
         { label: 'Avg RMS Velocity', value: avgRMS ?? '—', unit: 'mm/s', color: zoneDCount > 0 ? '#f87171' : '#4ade80' },
@@ -830,7 +832,7 @@ export default function ManufacturingDashboard() {
             </div>
           ) : (
             assetList.map(a => (
-              <AssetCard key={a.asset_id} asset={a}
+              <AssetCard key={a.asset_id} asset={a} theme={theme}
                 selected={selectedAsset === a.asset_id}
                 onClick={() => setSelectedAsset(selectedAsset === a.asset_id ? null : a.asset_id)} />
             ))
@@ -840,14 +842,14 @@ export default function ManufacturingDashboard() {
         <div style={{ display:'flex', flexDirection:'column', gap:16 }}>
           <div style={{ display:'grid', gridTemplateColumns: isMobile ? '1fr' : '1fr 1fr', gap:16 }}>
             {/* OEE trend */}
-            <div style={{ background:'#ffffff', border:'1px solid #e2e8f0',
+            <div style={{ background:t.cardBg, border:`1px solid ${t.cardBorder}`,
               borderRadius:12, padding:'16px 20px' }}>
-              <div style={{ fontSize:13, fontWeight:600, color:'#475569', marginBottom:14 }}>
+              <div style={{ fontSize:13, fontWeight:600, color:t.textDim, marginBottom:14 }}>
                 {isVibration ? 'Avg RMS Velocity & PdM Score Trend' : isCement ? 'Avg SHC & Total Production Trend' : 'OEE & Vibration Trend'}
               </div>
               {history.length < 2 ? (
                 <div style={{ height:160, display:'flex', alignItems:'center', justifyContent:'center',
-                  color:'#334155', fontSize:12 }}>Waiting…</div>
+                  color:t.textDim, fontSize:12 }}>Waiting…</div>
               ) : (
                 <ResponsiveContainer width="100%" height={160}>
                   <AreaChart data={history} margin={{ top:5, right:10, bottom:5, left:0 }}>
@@ -857,12 +859,11 @@ export default function ManufacturingDashboard() {
                         <stop offset="95%" stopColor="#8b5cf6" stopOpacity={0}/>
                       </linearGradient>
                     </defs>
-                    <CartesianGrid strokeDasharray="3 3" stroke="#e2e8f0" />
-                    <XAxis dataKey="time" tick={{ fontSize:9, fill:'#475569' }} tickLine={false} axisLine={false} interval="preserveStartEnd"/>
-                    <YAxis tick={{ fontSize:9, fill:'#475569' }} tickLine={false} axisLine={false} width={35}/>
-                    <Tooltip contentStyle={{ background:'#ffffff', border:'1px solid #e2e8f0',
-                      borderRadius:8, fontSize:11, color:'#1e293b' }}/>
-                    <Legend wrapperStyle={{ fontSize:10, color:'#64748b' }}/>
+                    <CartesianGrid strokeDasharray="3 3" stroke={ct.grid} />
+                    <XAxis dataKey="time" tick={{ fontSize:9, fill:ct.axis }} tickLine={false} axisLine={false} interval="preserveStartEnd"/>
+                    <YAxis tick={{ fontSize:9, fill:ct.axis }} tickLine={false} axisLine={false} width={35}/>
+                    <Tooltip contentStyle={ct.tooltipStyle}/>
+                    <Legend wrapperStyle={{ fontSize:10, color:ct.legend }}/>
                     <Area type="monotone" dataKey="avgOEE" name={isVibration ? 'Avg RMS Velocity (mm/s)' : isCement ? 'Avg SHC (kcal/kg)' : 'OEE %'} stroke="#8b5cf6" fill="url(#gOEE)" strokeWidth={2} dot={false} isAnimationActive={false}/>
                   </AreaChart>
                 </ResponsiveContainer>
@@ -870,22 +871,21 @@ export default function ManufacturingDashboard() {
             </div>
 
             {/* Per-line comparison bar */}
-            <div style={{ background:'#ffffff', border:'1px solid #e2e8f0',
+            <div style={{ background:t.cardBg, border:`1px solid ${t.cardBorder}`,
               borderRadius:12, padding:'16px 20px' }}>
-              <div style={{ fontSize:13, fontWeight:600, color:'#475569', marginBottom:14 }}>
+              <div style={{ fontSize:13, fontWeight:600, color:t.textDim, marginBottom:14 }}>
                 {isVibration ? 'RMS Velocity by Asset (mm/s)' : isCement ? 'Production by Line (t/h)' : 'Machine OEE Comparison'}
               </div>
               {oeeBarData.length === 0 ? (
                 <div style={{ height:160, display:'flex', alignItems:'center', justifyContent:'center',
-                  color:'#334155', fontSize:12 }}>{isVibration ? 'No rotary assets' : isCement ? 'No lines' : 'No machines'}</div>
+                  color:t.textDim, fontSize:12 }}>{isVibration ? 'No rotary assets' : isCement ? 'No lines' : 'No machines'}</div>
               ) : (
                 <ResponsiveContainer width="100%" height={160}>
                   <BarChart data={oeeBarData} margin={{ top:5, right:10, bottom:5, left:0 }}>
-                    <CartesianGrid strokeDasharray="3 3" stroke="#e2e8f0" />
-                    <XAxis dataKey="id" tick={{ fontSize:9, fill:'#475569' }} tickLine={false} axisLine={false}/>
-                    <YAxis domain={isCement || isVibration ? undefined : [0,100]} tick={{ fontSize:9, fill:'#475569' }} tickLine={false} axisLine={false} width={30}/>
-                    <Tooltip contentStyle={{ background:'#ffffff', border:'1px solid #e2e8f0',
-                      borderRadius:8, fontSize:11, color:'#1e293b' }}/>
+                    <CartesianGrid strokeDasharray="3 3" stroke={ct.grid} />
+                    <XAxis dataKey="id" tick={{ fontSize:9, fill:ct.axis }} tickLine={false} axisLine={false}/>
+                    <YAxis domain={isCement || isVibration ? undefined : [0,100]} tick={{ fontSize:9, fill:ct.axis }} tickLine={false} axisLine={false} width={30}/>
+                    <Tooltip contentStyle={ct.tooltipStyle}/>
                     <Bar dataKey="oee" name={isVibration ? 'RMS Velocity mm/s' : isCement ? 'Production t/h' : 'OEE %'} fill="#8b5cf6" radius={[4,4,0,0]} isAnimationActive={false}>
                       {isVibration && oeeBarData.map((d, i) => <Cell key={i} fill={ISO_ZONE_COLOR[d.zone] || '#8b5cf6'} />)}
                     </Bar>
@@ -896,14 +896,14 @@ export default function ManufacturingDashboard() {
           </div>
 
           {selectedObj && (
-            <div style={{ background:'#ffffff', border:'1px solid #e2e8f0',
+            <div style={{ background:t.cardBg, border:`1px solid ${t.cardBorder}`,
               borderRadius:12, padding:'16px 20px' }}>
               <div style={{ display:'flex', justifyContent:'space-between', marginBottom:14 }}>
-                <div style={{ fontSize:13, fontWeight:600, color:'#475569' }}>
+                <div style={{ fontSize:13, fontWeight:600, color:t.textDim }}>
                   {ASSET_META[selectedObj.asset_type]?.icon ?? '⚙️'} {selectedObj.asset_id}
                   <span style={{ marginLeft:8 }}><StatusBadge status={selectedObj.status} /></span>
                 </div>
-                <span style={{ fontSize:10, color:'#475569' }}>
+                <span style={{ fontSize:10, color:t.textDim }}>
                   {selectedObj.processed_at && new Date(selectedObj.processed_at).toLocaleTimeString()}
                 </span>
               </div>
@@ -917,7 +917,7 @@ export default function ManufacturingDashboard() {
         </div>
       </div>
 
-      <AlertFeed alerts={verticalAlerts} maxHeight={240} />
+      <AlertFeed alerts={verticalAlerts} maxHeight={240} theme={theme} />
     </div>
   );
 }

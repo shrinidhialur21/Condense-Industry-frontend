@@ -25,6 +25,7 @@ import {
   ThemedDashboardHeader,
   ThemedKPICard,
   NotConfiguredGuard,
+  chartTheme,
 } from "../../components/shared.jsx";
 
 const MAX_HISTORY = 40;
@@ -79,7 +80,8 @@ function SpeedBar({ speed = 0, max = 200 }) {
   );
 }
 
-function AssetCard({ asset, selected, onClick }) {
+function AssetCard({ asset, selected, onClick, theme = 'light' }) {
+  const t = THEME[theme];
   const meta = ASSET_META[asset.asset_type] || {
     icon: "🚗",
     label: asset.asset_type,
@@ -91,9 +93,9 @@ function AssetCard({ asset, selected, onClick }) {
       style={{
         background: selected
           ? "rgba(245,158,11,0.08)"
-          : "rgba(255,255,255,0.03)",
+          : t.cardBg,
         border: `1px solid ${
-          selected ? "rgba(245,158,11,0.4)" : "#e2e8f0"
+          selected ? "rgba(245,158,11,0.4)" : t.cardBorder
         }`,
         borderRadius: 10,
         padding: "12px 14px",
@@ -111,7 +113,7 @@ function AssetCard({ asset, selected, onClick }) {
       >
         <div>
           <span style={{ fontSize: 16, marginRight: 6 }}>{meta.icon}</span>
-          <span style={{ fontSize: 12, fontWeight: 600, color: "#475569" }}>
+          <span style={{ fontSize: 12, fontWeight: 600, color: t.text }}>
             {asset.asset_id}
           </span>
         </div>
@@ -126,12 +128,12 @@ function AssetCard({ asset, selected, onClick }) {
       >
         <div style={{ flex: 1, marginRight: 8 }}>
           <SpeedBar speed={asset.speed_kmh ?? 0} />
-          <div style={{ fontSize: 10, color: "#475569", marginTop: 6 }}>
+          <div style={{ fontSize: 10, color: t.textDim, marginTop: 6 }}>
             {meta.label} ·{" "}
             {asset.dtc_count ? `${asset.dtc_count} DTC` : "No DTCs"}
           </div>
         </div>
-        <HealthGauge score={health} size={54} />
+        <HealthGauge score={health} size={54} theme={theme} />
       </div>
       {asset.has_alerts && (
         <div
@@ -389,7 +391,9 @@ function FleetMap({ vehicles, selectedId, onSelect, posHistory }) {
 }
 
 // ── Commercial Vehicle Card ───────────────────────────────────
-function CommercialVehicleCard({ asset, selected, onClick }) {
+function CommercialVehicleCard({ asset, selected, onClick, theme = 'light' }) {
+  const t = THEME[theme];
+  const tileBg = theme === 'dark' ? t.pageBg : '#f8fafc';
   const k = asset.kpis || {};
   const spd = asset.veh_spd || 0;
   const spdColor = spd > 80 ? '#ef4444' : spd > 60 ? '#3b82f6' : spd > 0 ? '#22c55e' : '#94a3b8';
@@ -398,17 +402,17 @@ function CommercialVehicleCard({ asset, selected, onClick }) {
     : k.load_classification === 'partial' ? '#f59e0b' : '#16a34a';
   return (
     <div onClick={onClick} style={{
-      background: selected ? 'rgba(59,130,246,0.06)' : '#ffffff',
-      border: `1px solid ${selected ? 'rgba(59,130,246,0.4)' : '#e2e8f0'}`,
+      background: selected ? 'rgba(59,130,246,0.06)' : t.cardBg,
+      border: `1px solid ${selected ? 'rgba(59,130,246,0.4)' : t.cardBorder}`,
       borderRadius:10, padding:'12px 14px', cursor:'pointer', transition:'all 0.15s',
     }}>
       {/* Header */}
       <div style={{ display:'flex', justifyContent:'space-between', alignItems:'flex-start', marginBottom:8 }}>
         <div>
           <span style={{ fontSize:15, marginRight:5 }}>🚐</span>
-          <span style={{ fontSize:12, fontWeight:700, color:'#1e293b' }}>{asset.asset_id}</span>
+          <span style={{ fontSize:12, fontWeight:700, color:t.text }}>{asset.asset_id}</span>
           {asset.registration_no && (
-            <span style={{ fontSize:9, color:'#64748b', marginLeft:6, fontFamily:'monospace' }}>{asset.registration_no}</span>
+            <span style={{ fontSize:9, color:t.textDim, marginLeft:6, fontFamily:'monospace' }}>{asset.registration_no}</span>
           )}
         </div>
         <StatusBadge status={asset.status} />
@@ -416,22 +420,22 @@ function CommercialVehicleCard({ asset, selected, onClick }) {
 
       {/* Speed + RPM row */}
       <div style={{ display:'flex', gap:8, marginBottom:8 }}>
-        <div style={{ flex:1, background:'#f8fafc', borderRadius:6, padding:'5px 8px', textAlign:'center' }}>
-          <div style={{ fontSize:9, color:'#64748b', textTransform:'uppercase' }}>Speed</div>
+        <div style={{ flex:1, background:tileBg, borderRadius:6, padding:'5px 8px', textAlign:'center' }}>
+          <div style={{ fontSize:9, color:t.textDim, textTransform:'uppercase' }}>Speed</div>
           <div style={{ fontSize:16, fontWeight:800, color:spdColor, fontFamily:'monospace' }}>
-            {spd.toFixed(0)}<span style={{ fontSize:9, color:'#94a3b8' }}> km/h</span>
+            {spd.toFixed(0)}<span style={{ fontSize:9, color:t.textFaint }}> km/h</span>
           </div>
         </div>
-        <div style={{ flex:1, background:'#f8fafc', borderRadius:6, padding:'5px 8px', textAlign:'center' }}>
-          <div style={{ fontSize:9, color:'#64748b', textTransform:'uppercase' }}>RPM</div>
-          <div style={{ fontSize:16, fontWeight:800, color:'#475569', fontFamily:'monospace' }}>
-            {asset.eng_spd ? Math.round(asset.eng_spd) : '—'}<span style={{ fontSize:9, color:'#94a3b8' }}> rpm</span>
+        <div style={{ flex:1, background:tileBg, borderRadius:6, padding:'5px 8px', textAlign:'center' }}>
+          <div style={{ fontSize:9, color:t.textDim, textTransform:'uppercase' }}>RPM</div>
+          <div style={{ fontSize:16, fontWeight:800, color:theme==='dark'?'#c4c9d4':'#475569', fontFamily:'monospace' }}>
+            {asset.eng_spd ? Math.round(asset.eng_spd) : '—'}<span style={{ fontSize:9, color:t.textFaint }}> rpm</span>
           </div>
         </div>
-        <div style={{ flex:1, background:'#f8fafc', borderRadius:6, padding:'5px 8px', textAlign:'center' }}>
-          <div style={{ fontSize:9, color:'#64748b', textTransform:'uppercase' }}>Fuel</div>
+        <div style={{ flex:1, background:tileBg, borderRadius:6, padding:'5px 8px', textAlign:'center' }}>
+          <div style={{ fontSize:9, color:t.textDim, textTransform:'uppercase' }}>Fuel</div>
           <div style={{ fontSize:16, fontWeight:800, color:'#7c3aed', fontFamily:'monospace' }}>
-            {asset.eng_fuel_rate ? asset.eng_fuel_rate.toFixed(2) : '—'}<span style={{ fontSize:9, color:'#94a3b8' }}> L/h</span>
+            {asset.eng_fuel_rate ? asset.eng_fuel_rate.toFixed(2) : '—'}<span style={{ fontSize:9, color:t.textFaint }}> L/h</span>
           </div>
         </div>
       </div>
@@ -667,25 +671,27 @@ function CommercialVehicleDetail({ asset }) {
 }
 
 // ── Digital Cockpit Vehicle Card ──────────────────────────────
-function CockpitVehicleCard({ asset, selected, onClick }) {
+function CockpitVehicleCard({ asset, selected, onClick, theme = 'light' }) {
+  const t = THEME[theme];
+  const tileBg = theme === 'dark' ? t.pageBg : '#f8fafc';
   const k = asset.kpis || {};
   const score = k.cockpit_health_score;
   const scoreColor = score >= 80 ? '#16a34a' : score >= 50 ? '#d97706' : '#dc2626';
   const sevColor = DTC_SEVERITY_COLOR[k.highest_severity] || DTC_SEVERITY_COLOR.none;
   return (
     <div onClick={onClick} style={{
-      background: selected ? 'rgba(59,130,246,0.06)' : '#ffffff',
-      border: `1px solid ${selected ? 'rgba(59,130,246,0.4)' : '#e2e8f0'}`,
+      background: selected ? 'rgba(59,130,246,0.06)' : t.cardBg,
+      border: `1px solid ${selected ? 'rgba(59,130,246,0.4)' : t.cardBorder}`,
       borderRadius:10, padding:'12px 14px', cursor:'pointer', transition:'all 0.15s',
     }}>
       <div style={{ display:'flex', justifyContent:'space-between', alignItems:'flex-start', marginBottom:8 }}>
         <div>
           <span style={{ fontSize:15, marginRight:5 }}>🖥️</span>
-          <span style={{ fontSize:12, fontWeight:700, color:'#1e293b' }}>{asset.asset_id}</span>
+          <span style={{ fontSize:12, fontWeight:700, color:t.text }}>{asset.asset_id}</span>
           {asset.is_simulated && (
-            <span style={{ fontSize:8, color:'#94a3b8', marginLeft:6, fontFamily:'monospace' }}>SIM</span>
+            <span style={{ fontSize:8, color:t.textFaint, marginLeft:6, fontFamily:'monospace' }}>SIM</span>
           )}
-          <div style={{ fontSize:9, color:'#64748b', marginTop:2 }}>{asset.vehicle_model || '—'}</div>
+          <div style={{ fontSize:9, color:t.textDim, marginTop:2 }}>{asset.vehicle_model || '—'}</div>
         </div>
         {k.highest_severity && k.highest_severity !== 'none' ? (
           <span style={{ fontSize:9, fontWeight:700, padding:'2px 8px', borderRadius:10,
@@ -699,14 +705,14 @@ function CockpitVehicleCard({ asset, selected, onClick }) {
       </div>
 
       <div style={{ display:'flex', gap:8, marginBottom:8 }}>
-        <div style={{ flex:1, background:'#f8fafc', borderRadius:6, padding:'5px 8px', textAlign:'center' }}>
-          <div style={{ fontSize:9, color:'#64748b', textTransform:'uppercase' }}>Health</div>
+        <div style={{ flex:1, background:tileBg, borderRadius:6, padding:'5px 8px', textAlign:'center' }}>
+          <div style={{ fontSize:9, color:t.textDim, textTransform:'uppercase' }}>Health</div>
           <div style={{ fontSize:16, fontWeight:800, color:scoreColor, fontFamily:'monospace' }}>
-            {score != null ? score : '—'}<span style={{ fontSize:9, color:'#94a3b8' }}> /100</span>
+            {score != null ? score : '—'}<span style={{ fontSize:9, color:t.textFaint }}> /100</span>
           </div>
         </div>
-        <div style={{ flex:1, background:'#f8fafc', borderRadius:6, padding:'5px 8px', textAlign:'center' }}>
-          <div style={{ fontSize:9, color:'#64748b', textTransform:'uppercase' }}>DTCs</div>
+        <div style={{ flex:1, background:tileBg, borderRadius:6, padding:'5px 8px', textAlign:'center' }}>
+          <div style={{ fontSize:9, color:t.textDim, textTransform:'uppercase' }}>DTCs</div>
           <div style={{ fontSize:16, fontWeight:800, color: k.active_dtc_count > 0 ? '#dc2626' : '#16a34a', fontFamily:'monospace' }}>
             {k.active_dtc_count ?? 0}
           </div>
@@ -924,6 +930,7 @@ export default function AutomotiveDashboard() {
     return <NotConfiguredGuard theme={theme} />;
   }
   const t = THEME[theme];
+  const ct = chartTheme(theme);
   return (
     <div
       style={{
@@ -997,16 +1004,16 @@ export default function AutomotiveDashboard() {
 
       <div style={{ display:"grid", gridTemplateColumns: isMobile || isTablet ? "1fr" : "280px 1fr", gap:20, marginBottom:20 }}>
         <div style={{ display:"flex", flexDirection:"column", gap:8 }}>
-          <div style={{ fontSize:12, fontWeight:600, color:"#64748b", textTransform:"uppercase", letterSpacing:"0.06em", marginBottom:4 }}>
+          <div style={{ fontSize:12, fontWeight:600, color:t.textDim, textTransform:"uppercase", letterSpacing:"0.06em", marginBottom:4 }}>
             Vehicles ({telematics.length})
           </div>
           {telematics.length === 0 ? (
-            <div style={{ textAlign:"center", padding:40, color:"#334155", fontSize:13, border:"1px dashed rgba(255,255,255,0.06)", borderRadius:10 }}>
+            <div style={{ textAlign:"center", padding:40, color:t.textDim, fontSize:13, border:`1px dashed ${t.cardBorder}`, borderRadius:10 }}>
               {status === "connecting" ? "Connecting…" : "No vehicles. Start the simulator."}
             </div>
           ) : (
             telematics.map((a) => (
-              <AssetCard key={a.asset_id} asset={a}
+              <AssetCard key={a.asset_id} asset={a} theme={theme}
                 selected={selectedAsset === a.asset_id}
                 onClick={() => setSelectedAsset(selectedAsset === a.asset_id ? null : a.asset_id)} />
             ))
@@ -1016,8 +1023,8 @@ export default function AutomotiveDashboard() {
         <div style={{ display: "flex", flexDirection: "column", gap: 16 }}>
           <div
             style={{
-              background: "#ffffff",
-              border: "1px solid #e2e8f0",
+              background: t.cardBg,
+              border: `1px solid ${t.cardBorder}`,
               borderRadius: 12,
               padding: "16px 20px",
             }}
@@ -1026,7 +1033,7 @@ export default function AutomotiveDashboard() {
               style={{
                 fontSize: 13,
                 fontWeight: 600,
-                color: "#475569",
+                color: t.textDim,
                 marginBottom: 14,
               }}
             >
@@ -1039,7 +1046,7 @@ export default function AutomotiveDashboard() {
                   display: "flex",
                   alignItems: "center",
                   justifyContent: "center",
-                  color: "#334155",
+                  color: t.textDim,
                   fontSize: 12,
                 }}
               >
@@ -1051,31 +1058,25 @@ export default function AutomotiveDashboard() {
                   data={history}
                   margin={{ top: 5, right: 10, bottom: 5, left: 0 }}
                 >
-                  <CartesianGrid strokeDasharray="3 3" stroke="#e2e8f0" />
+                  <CartesianGrid strokeDasharray="3 3" stroke={ct.grid} />
                   <XAxis
                     dataKey="time"
-                    tick={{ fontSize: 10, fill: "#475569" }}
+                    tick={{ fontSize: 10, fill: ct.axis }}
                     tickLine={false}
                     axisLine={false}
                     interval="preserveStartEnd"
                   />
                   <YAxis
-                    tick={{ fontSize: 10, fill: "#475569" }}
+                    tick={{ fontSize: 10, fill: ct.axis }}
                     tickLine={false}
                     axisLine={false}
                     width={40}
                   />
                   <Tooltip
-                    contentStyle={{
-                      background: "#ffffff",
-                      border: "1px solid #e2e8f0",
-                      borderRadius: 8,
-                      fontSize: 11,
-                      color: "#1e293b",
-                    }}
-                    labelStyle={{ color: "#64748b" }}
+                    contentStyle={ct.tooltipStyle}
+                    labelStyle={{ color: ct.axis }}
                   />
-                  <Legend wrapperStyle={{ fontSize: 11, color: "#64748b" }} />
+                  <Legend wrapperStyle={{ fontSize: 11, color: ct.legend }} />
                   <Line
                     type="monotone"
                     dataKey="avgSpeed"
@@ -1100,13 +1101,13 @@ export default function AutomotiveDashboard() {
           </div>
 
           {selectedObj && selectedObj.asset_type !== 'commercial_vehicle' && (
-            <div style={{ background:"#ffffff", border:"1px solid #e2e8f0", borderRadius:12, padding:"16px 20px" }}>
+            <div style={{ background:t.cardBg, border:`1px solid ${t.cardBorder}`, borderRadius:12, padding:"16px 20px" }}>
               <div style={{ display:"flex", justifyContent:"space-between", marginBottom:14 }}>
-                <div style={{ fontSize:13, fontWeight:600, color:"#475569" }}>
+                <div style={{ fontSize:13, fontWeight:600, color:t.textDim }}>
                   {ASSET_META[selectedObj.asset_type]?.icon ?? "🚗"} {selectedObj.asset_id}
                   <span style={{ marginLeft:8 }}><StatusBadge status={selectedObj.status} /></span>
                 </div>
-                <span style={{ fontSize:10, color:"#475569" }}>
+                <span style={{ fontSize:10, color:t.textDim }}>
                   {selectedObj.processed_at && new Date(selectedObj.processed_at).toLocaleTimeString()}
                 </span>
               </div>
@@ -1147,16 +1148,16 @@ export default function AutomotiveDashboard() {
         {/* Vehicle list + detail */}
         <div style={{ display:'grid', gridTemplateColumns: isMobile || isTablet ? '1fr' : '300px 1fr', gap:20 }}>
           <div style={{ display:'flex', flexDirection:'column', gap:8 }}>
-            <div style={{ fontSize:12, fontWeight:600, color:'#64748b', textTransform:'uppercase',
+            <div style={{ fontSize:12, fontWeight:600, color:t.textDim, textTransform:'uppercase',
               letterSpacing:'0.06em', marginBottom:4 }}>OBD Fleet ({cvFleet.length})</div>
             {cvFleet.length === 0 ? (
-              <div style={{ textAlign:'center', padding:40, color:'#334155', fontSize:13,
-                border:'1px dashed #cbd5e1', borderRadius:10 }}>
+              <div style={{ textAlign:'center', padding:40, color:t.textDim, fontSize:13,
+                border:`1px dashed ${t.cardBorder}`, borderRadius:10 }}>
                 {status === 'connecting' ? 'Connecting…' : 'No OBD vehicles. Start the OBD simulator.'}
               </div>
             ) : (
               cvFleet.map(v => (
-                <CommercialVehicleCard key={v.asset_id} asset={v}
+                <CommercialVehicleCard key={v.asset_id} asset={v} theme={theme}
                   selected={selectedAsset === v.asset_id}
                   onClick={() => setSelectedAsset(selectedAsset === v.asset_id ? null : v.asset_id)} />
               ))
@@ -1165,9 +1166,9 @@ export default function AutomotiveDashboard() {
 
           <div>
             {selectedAsset && assets[selectedAsset]?.asset_type === 'commercial_vehicle' ? (
-              <div style={{ background:'#ffffff', border:'1px solid #e2e8f0', borderRadius:12, padding:'16px 20px' }}>
+              <div style={{ background:t.cardBg, border:`1px solid ${t.cardBorder}`, borderRadius:12, padding:'16px 20px' }}>
                 <div style={{ display:'flex', justifyContent:'space-between', alignItems:'center', marginBottom:14 }}>
-                  <div style={{ fontSize:13, fontWeight:700, color:'#1e293b' }}>
+                  <div style={{ fontSize:13, fontWeight:700, color:t.text }}>
                     🚐 {selectedAsset}
                     <span style={{ marginLeft:8 }}><StatusBadge status={assets[selectedAsset]?.status} /></span>
                     {assets[selectedAsset]?.sources && (
@@ -1177,15 +1178,15 @@ export default function AutomotiveDashboard() {
                       </span>
                     )}
                   </div>
-                  <span style={{ fontSize:10, color:'#64748b' }}>
+                  <span style={{ fontSize:10, color:t.textDim }}>
                     {assets[selectedAsset]?.processed_at && new Date(assets[selectedAsset].processed_at).toLocaleTimeString()}
                   </span>
                 </div>
                 <CommercialVehicleDetail asset={assets[selectedAsset]} />
               </div>
             ) : (
-              <div style={{ background:'#f8fafc', border:'1px dashed #cbd5e1', borderRadius:12, padding:40,
-                textAlign:'center', color:'#94a3b8', fontSize:13 }}>
+              <div style={{ background:t.cardBg, border:`1px dashed ${t.cardBorder}`, borderRadius:12, padding:40,
+                textAlign:'center', color:t.textDim, fontSize:13 }}>
                 👆 Select a vehicle from the list or click on the map to view VLD + Driver Analytics
               </div>
             )}
@@ -1207,16 +1208,16 @@ export default function AutomotiveDashboard() {
 
         <div style={{ display:'grid', gridTemplateColumns: isMobile || isTablet ? '1fr' : '300px 1fr', gap:20 }}>
           <div style={{ display:'flex', flexDirection:'column', gap:8 }}>
-            <div style={{ fontSize:12, fontWeight:600, color:'#64748b', textTransform:'uppercase',
+            <div style={{ fontSize:12, fontWeight:600, color:t.textDim, textTransform:'uppercase',
               letterSpacing:'0.06em', marginBottom:4 }}>Digital Cockpits ({cockpitFleet.length})</div>
             {cockpitFleet.length === 0 ? (
-              <div style={{ textAlign:'center', padding:40, color:'#334155', fontSize:13,
-                border:'1px dashed #cbd5e1', borderRadius:10 }}>
+              <div style={{ textAlign:'center', padding:40, color:t.textDim, fontSize:13,
+                border:`1px dashed ${t.cardBorder}`, borderRadius:10 }}>
                 {status === 'connecting' ? 'Connecting…' : 'No cockpit data. Start the Cockpit repeater + diagnostics transform.'}
               </div>
             ) : (
               cockpitFleet.map(v => (
-                <CockpitVehicleCard key={v.asset_id} asset={v}
+                <CockpitVehicleCard key={v.asset_id} asset={v} theme={theme}
                   selected={selectedAsset === v.asset_id}
                   onClick={() => setSelectedAsset(selectedAsset === v.asset_id ? null : v.asset_id)} />
               ))
@@ -1225,23 +1226,23 @@ export default function AutomotiveDashboard() {
 
           <div>
             {selectedAsset && assets[selectedAsset]?.asset_type === 'digital_cockpit' ? (
-              <div style={{ background:'#ffffff', border:'1px solid #e2e8f0', borderRadius:12, padding:'16px 20px' }}>
+              <div style={{ background:t.cardBg, border:`1px solid ${t.cardBorder}`, borderRadius:12, padding:'16px 20px' }}>
                 <div style={{ display:'flex', justifyContent:'space-between', alignItems:'center', marginBottom:14 }}>
-                  <div style={{ fontSize:13, fontWeight:700, color:'#1e293b' }}>
+                  <div style={{ fontSize:13, fontWeight:700, color:t.text }}>
                     🖥️ {selectedAsset}
-                    <span style={{ marginLeft:8, fontSize:10, color:'#64748b', fontWeight:500 }}>
+                    <span style={{ marginLeft:8, fontSize:10, color:t.textDim, fontWeight:500 }}>
                       {assets[selectedAsset]?.vehicle_model}
                     </span>
                   </div>
-                  <span style={{ fontSize:10, color:'#64748b' }}>
+                  <span style={{ fontSize:10, color:t.textDim }}>
                     {assets[selectedAsset]?.processed_at && new Date(assets[selectedAsset].processed_at).toLocaleTimeString()}
                   </span>
                 </div>
                 <CockpitVehicleDetail asset={assets[selectedAsset]} />
               </div>
             ) : (
-              <div style={{ background:'#f8fafc', border:'1px dashed #cbd5e1', borderRadius:12, padding:40,
-                textAlign:'center', color:'#94a3b8', fontSize:13 }}>
+              <div style={{ background:t.cardBg, border:`1px dashed ${t.cardBorder}`, borderRadius:12, padding:40,
+                textAlign:'center', color:t.textDim, fontSize:13 }}>
                 👆 Select a vehicle from the list to view DTC codes, health gauges and OTA fix recommendations
               </div>
             )}
@@ -1249,7 +1250,7 @@ export default function AutomotiveDashboard() {
         </div>
       </>}
 
-      <AlertFeed alerts={alerts} maxHeight={220} />
+      <AlertFeed alerts={alerts} maxHeight={220} theme={theme} />
     </div>
   );
 }

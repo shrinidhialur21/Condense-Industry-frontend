@@ -12,7 +12,7 @@ import { INDUSTRIES }    from '../../config/industries.js';
 import { useWindowSize } from '../../hooks/useWindowSize.js';
 import {
   AlertFeed, StatusBadge, HealthGauge,
-  THEME, ThemedDashboardHeader, ThemedKPICard, NotConfiguredGuard,
+  THEME, ThemedDashboardHeader, ThemedKPICard, NotConfiguredGuard, chartTheme,
 } from '../../components/shared.jsx';
 import travelHero from '../../assets/industries/travel.jpg';
 
@@ -132,7 +132,8 @@ function EEIBadge({ status }) {
 }
 
 // ── Asset Cards ───────────────────────────────────────────────────────────────
-function HotelRoomCard({ asset, selected, onClick }) {
+function HotelRoomCard({ asset, selected, onClick, theme = 'light' }) {
+  const t = THEME[theme];
   const occ    = asset.occupied;
   const gss    = asset.kpis?.guest_satisfaction_score;
   const revpar = asset.kpis?.revpar_usd;
@@ -143,21 +144,21 @@ function HotelRoomCard({ asset, selected, onClick }) {
     ? 'rgba(239,68,68,0.35)'
     : selected
       ? 'rgba(16,185,129,0.4)'
-      : '#e2e8f0';
+      : t.cardBorder;
 
   return (
     <div onClick={onClick} style={{
-      background: selected ? 'rgba(16,185,129,0.07)' : '#ffffff',
+      background: selected ? 'rgba(16,185,129,0.07)' : t.cardBg,
       border: `1px solid ${borderColor}`,
       borderRadius: 10, padding: '10px 12px', cursor: 'pointer',
       transition: 'all 0.15s', minWidth: 0,
     }}>
       <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', marginBottom: 6 }}>
         <div>
-          <div style={{ fontSize: 12, fontWeight: 700, color: '#1e293b' }}>
+          <div style={{ fontSize: 12, fontWeight: 700, color: t.text }}>
             Room {asset.room_number}
           </div>
-          <div style={{ fontSize: 9, color: '#475569', marginTop: 1 }}>{asset.room_type}</div>
+          <div style={{ fontSize: 9, color: t.textDim, marginTop: 1 }}>{asset.room_type}</div>
         </div>
         <span style={{
           fontSize: 9, fontWeight: 700, padding: '2px 6px', borderRadius: 10,
@@ -173,20 +174,21 @@ function HotelRoomCard({ asset, selected, onClick }) {
           <div style={{ fontSize: 16, fontWeight: 800, color: '#10b981', fontFamily: 'monospace' }}>
             ${revpar != null ? revpar.toFixed(0) : '—'}
           </div>
-          <div style={{ fontSize: 9, color: '#475569' }}>RevPAR</div>
+          <div style={{ fontSize: 9, color: t.textDim }}>RevPAR</div>
         </div>
         <div style={{ textAlign: 'right' }}>
           <div style={{ fontSize: 13, fontWeight: 700, color: gss >= 70 ? '#22c55e' : gss >= 50 ? '#f59e0b' : '#ef4444' }}>
             {gss != null ? gss.toFixed(0) : '—'}
           </div>
-          <div style={{ fontSize: 9, color: '#475569' }}>GSS</div>
+          <div style={{ fontSize: 9, color: t.textDim }}>GSS</div>
         </div>
       </div>
     </div>
   );
 }
 
-function FnBCard({ asset, selected, onClick }) {
+function FnBCard({ asset, selected, onClick, theme = 'light' }) {
+  const t = THEME[theme];
   const occ      = asset.kpis?.occupancy_pct ?? asset.occupancy_pct;
   const waitSLA  = asset.kpis?.wait_time_sla;
   const revCover = asset.kpis?.revenue_per_cover_usd;
@@ -194,12 +196,12 @@ function FnBCard({ asset, selected, onClick }) {
 
   return (
     <div onClick={onClick} style={{
-      background: selected ? 'rgba(245,158,11,0.07)' : '#ffffff',
-      border: `1px solid ${selected ? 'rgba(245,158,11,0.4)' : '#e2e8f0'}`,
+      background: selected ? 'rgba(245,158,11,0.07)' : t.cardBg,
+      border: `1px solid ${selected ? 'rgba(245,158,11,0.4)' : t.cardBorder}`,
       borderRadius: 10, padding: '10px 12px', cursor: 'pointer', transition: 'all 0.15s',
     }}>
       <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', marginBottom: 5 }}>
-        <div style={{ fontSize: 11, fontWeight: 700, color: '#1e293b', lineHeight: 1.3 }}>
+        <div style={{ fontSize: 11, fontWeight: 700, color: t.text, lineHeight: 1.3 }}>
           {asset.outlet_name || asset.asset_id}
         </div>
         <span style={{ fontSize: 9, fontWeight: 600, padding: '2px 6px', borderRadius: 10,
@@ -212,31 +214,32 @@ function FnBCard({ asset, selected, onClick }) {
           <div style={{ fontSize: 14, fontWeight: 800, color: '#f59e0b', fontFamily: 'monospace' }}>
             {occ != null ? `${occ.toFixed(0)}%` : '—'}
           </div>
-          <div style={{ fontSize: 9, color: '#475569' }}>Occupancy</div>
+          <div style={{ fontSize: 9, color: t.textDim }}>Occupancy</div>
         </div>
         <div style={{ textAlign: 'right' }}>
-          <div style={{ fontSize: 12, fontWeight: 700, color: '#1e293b', fontFamily: 'monospace' }}>
+          <div style={{ fontSize: 12, fontWeight: 700, color: t.text, fontFamily: 'monospace' }}>
             ${revCover != null ? revCover.toFixed(2) : '—'}
           </div>
-          <div style={{ fontSize: 9, color: '#475569' }}>Rev/Cover</div>
+          <div style={{ fontSize: 9, color: t.textDim }}>Rev/Cover</div>
         </div>
       </div>
     </div>
   );
 }
 
-function SpaCard({ asset, selected, onClick }) {
+function SpaCard({ asset, selected, onClick, theme = 'light' }) {
+  const t = THEME[theme];
   const util = asset.kpis?.utilization_pct;
   const gss  = asset.kpis?.guest_satisfaction_score;
 
   return (
     <div onClick={onClick} style={{
-      background: selected ? 'rgba(139,92,246,0.07)' : '#ffffff',
-      border: `1px solid ${selected ? 'rgba(139,92,246,0.4)' : '#e2e8f0'}`,
+      background: selected ? 'rgba(139,92,246,0.07)' : t.cardBg,
+      border: `1px solid ${selected ? 'rgba(139,92,246,0.4)' : t.cardBorder}`,
       borderRadius: 10, padding: '10px 12px', cursor: 'pointer', transition: 'all 0.15s',
     }}>
       <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', marginBottom: 5 }}>
-        <div style={{ fontSize: 11, fontWeight: 700, color: '#1e293b' }}>
+        <div style={{ fontSize: 11, fontWeight: 700, color: t.text }}>
           {asset.service_name || asset.asset_id}
         </div>
         <span style={{
@@ -252,31 +255,32 @@ function SpaCard({ asset, selected, onClick }) {
           <div style={{ fontSize: 14, fontWeight: 800, color: '#8b5cf6', fontFamily: 'monospace' }}>
             {util != null ? `${util.toFixed(0)}%` : '—'}
           </div>
-          <div style={{ fontSize: 9, color: '#475569' }}>Utilization</div>
+          <div style={{ fontSize: 9, color: t.textDim }}>Utilization</div>
         </div>
         <div style={{ textAlign: 'right' }}>
           <div style={{ fontSize: 12, fontWeight: 700, color: gss >= 70 ? '#22c55e' : '#f59e0b' }}>
             {gss != null ? gss.toFixed(0) : '—'}
           </div>
-          <div style={{ fontSize: 9, color: '#475569' }}>GSS</div>
+          <div style={{ fontSize: 9, color: t.textDim }}>GSS</div>
         </div>
       </div>
     </div>
   );
 }
 
-function FeedbackCard({ asset, selected, onClick }) {
+function FeedbackCard({ asset, selected, onClick, theme = 'light' }) {
+  const t = THEME[theme];
   const gss  = asset.kpis?.guest_satisfaction_score;
   const sent = asset.sentiment;
 
   return (
     <div onClick={onClick} style={{
-      background: selected ? 'rgba(236,72,153,0.07)' : '#ffffff',
-      border: `1px solid ${selected ? 'rgba(236,72,153,0.4)' : '#e2e8f0'}`,
+      background: selected ? 'rgba(236,72,153,0.07)' : t.cardBg,
+      border: `1px solid ${selected ? 'rgba(236,72,153,0.4)' : t.cardBorder}`,
       borderRadius: 10, padding: '10px 12px', cursor: 'pointer', transition: 'all 0.15s',
     }}>
       <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', marginBottom: 5 }}>
-        <div style={{ fontSize: 11, fontWeight: 700, color: '#1e293b' }}>
+        <div style={{ fontSize: 11, fontWeight: 700, color: t.text }}>
           {asset.category ? asset.category.replace('_', ' ').replace(/\b\w/g, l => l.toUpperCase()) : asset.asset_id}
         </div>
         <SentimentBadge val={sent} />
@@ -286,7 +290,7 @@ function FeedbackCard({ asset, selected, onClick }) {
           <div style={{ fontSize: 14, fontWeight: 800, color: '#ec4899', fontFamily: 'monospace' }}>
             {asset.rating != null ? asset.rating.toFixed(1) : '—'}
           </div>
-          <div style={{ fontSize: 9, color: '#475569' }}>Rating</div>
+          <div style={{ fontSize: 9, color: t.textDim }}>Rating</div>
         </div>
         <div style={{ textAlign: 'right' }}>
           <NPSBadge cat={asset.kpis?.nps_category} />
@@ -296,19 +300,20 @@ function FeedbackCard({ asset, selected, onClick }) {
   );
 }
 
-function FacilityCard({ asset, selected, onClick }) {
+function FacilityCard({ asset, selected, onClick, theme = 'light' }) {
+  const t = THEME[theme];
   const util    = asset.kpis?.utilization_pct ?? asset.utilization_pct;
   const risk    = asset.kpis?.maintenance_risk;
   const riskColor = risk === 'high' ? '#ef4444' : risk === 'medium' ? '#f59e0b' : '#22c55e';
 
   return (
     <div onClick={onClick} style={{
-      background: selected ? 'rgba(6,182,212,0.07)' : '#ffffff',
-      border: `1px solid ${selected ? 'rgba(6,182,212,0.4)' : '#e2e8f0'}`,
+      background: selected ? 'rgba(6,182,212,0.07)' : t.cardBg,
+      border: `1px solid ${selected ? 'rgba(6,182,212,0.4)' : t.cardBorder}`,
       borderRadius: 10, padding: '10px 12px', cursor: 'pointer', transition: 'all 0.15s',
     }}>
       <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', marginBottom: 5 }}>
-        <div style={{ fontSize: 11, fontWeight: 700, color: '#1e293b' }}>
+        <div style={{ fontSize: 11, fontWeight: 700, color: t.text }}>
           {asset.facility_name || asset.asset_id}
         </div>
         <span style={{ fontSize: 9, fontWeight: 600, padding: '2px 6px', borderRadius: 10,
@@ -322,13 +327,13 @@ function FacilityCard({ asset, selected, onClick }) {
           <div style={{ fontSize: 14, fontWeight: 800, color: '#06b6d4', fontFamily: 'monospace' }}>
             {util != null ? `${util.toFixed(0)}%` : '—'}
           </div>
-          <div style={{ fontSize: 9, color: '#475569' }}>Utilization</div>
+          <div style={{ fontSize: 9, color: t.textDim }}>Utilization</div>
         </div>
         <div style={{ textAlign: 'right' }}>
           <span style={{ fontSize: 10, fontWeight: 600, color: riskColor }}>
             {risk ? risk.toUpperCase() : '—'}
           </span>
-          <div style={{ fontSize: 9, color: '#475569' }}>Maint. Risk</div>
+          <div style={{ fontSize: 9, color: t.textDim }}>Maint. Risk</div>
         </div>
       </div>
     </div>
@@ -530,13 +535,14 @@ const DETAIL_COMPONENTS = {
 };
 
 // ── Section Header ────────────────────────────────────────────────────────────
-function SectionHeader({ icon, title, count, color }) {
+function SectionHeader({ icon, title, count, color, theme = 'light' }) {
+  const t = THEME[theme];
   return (
     <div style={{ display: 'flex', alignItems: 'center', gap: 8, marginBottom: 10 }}>
       <span style={{ fontSize: 16 }}>{icon}</span>
-      <span style={{ fontSize: 13, fontWeight: 700, color: '#475569' }}>{title}</span>
+      <span style={{ fontSize: 13, fontWeight: 700, color: t.textDim }}>{title}</span>
       {count != null && (
-        <span style={{ fontSize: 10, color: '#64748b', background: '#e2e8f0',
+        <span style={{ fontSize: 10, color: t.textDim, background: t.cardBorder,
           padding: '2px 6px', borderRadius: 4 }}>{count}</span>
       )}
     </div>
@@ -632,6 +638,7 @@ export default function TravelDashboard() {
   }
 
   const t = THEME[theme];
+  const ct = chartTheme(theme);
   const travelCritAlerts = alerts.filter(a => a.severity === 'critical').length;
 
   return (
@@ -703,9 +710,9 @@ export default function TravelDashboard() {
 
           {/* Hotel Rooms */}
           {rooms.length > 0 && (
-            <div style={{ background: '#ffffff', border: '1px solid #e2e8f0',
+            <div style={{ background: t.cardBg, border: `1px solid ${t.cardBorder}`,
               borderRadius: 12, padding: 16 }}>
-              <SectionHeader icon="🛏️" title="Hotel Rooms" count={rooms.length} color="#10b981" />
+              <SectionHeader icon="🛏️" title="Hotel Rooms" count={rooms.length} color="#10b981" theme={theme} />
               <div style={{
                 display: 'grid', gap: 8,
                 gridTemplateColumns: 'repeat(auto-fill, minmax(160px, 1fr))',
@@ -715,6 +722,7 @@ export default function TravelDashboard() {
                     key={r.asset_id}
                     asset={r}
                     selected={selectedId === r.asset_id}
+                    theme={theme}
                     onClick={() => handleSelect(r.asset_id)}
                   />
                 ))}
@@ -725,9 +733,9 @@ export default function TravelDashboard() {
           {/* Trend Charts Row */}
           <div style={{ display: 'grid', gridTemplateColumns: isMobile ? '1fr' : '1fr 1fr', gap: 12 }}>
             {/* GSS Trend */}
-            <div style={{ background: '#ffffff', border: '1px solid #e2e8f0',
+            <div style={{ background: t.cardBg, border: `1px solid ${t.cardBorder}`,
               borderRadius: 12, padding: 16 }}>
-              <div style={{ fontSize: 12, fontWeight: 600, color: '#64748b', marginBottom: 10 }}>
+              <div style={{ fontSize: 12, fontWeight: 600, color: t.textDim, marginBottom: 10 }}>
                 Guest Satisfaction Score Trend
               </div>
               <ResponsiveContainer width="100%" height={120}>
@@ -738,20 +746,19 @@ export default function TravelDashboard() {
                       <stop offset="95%" stopColor="#10b981" stopOpacity={0}/>
                     </linearGradient>
                   </defs>
-                  <CartesianGrid strokeDasharray="3 3" stroke="#f1f5f9"/>
+                  <CartesianGrid strokeDasharray="3 3" stroke={ct.grid}/>
                   <XAxis dataKey="t" hide />
-                  <YAxis domain={[0, 100]} tick={{ fill: '#94a3b8', fontSize: 9 }} width={28}/>
-                  <Tooltip contentStyle={{ background: '#ffffff', border: '1px solid #e2e8f0',
-                    borderRadius: 6, fontSize: 11 }} labelStyle={{ color: '#64748b' }} />
+                  <YAxis domain={[0, 100]} tick={{ fill: ct.axis, fontSize: 9 }} width={28}/>
+                  <Tooltip contentStyle={ct.tooltipStyle} labelStyle={{ color: ct.legend }} />
                   <Area dataKey="gss" stroke="#10b981" fill="url(#gssGrad)" dot={false} strokeWidth={1.5}/>
                 </AreaChart>
               </ResponsiveContainer>
             </div>
 
             {/* Occupancy Trend */}
-            <div style={{ background: '#ffffff', border: '1px solid #e2e8f0',
+            <div style={{ background: t.cardBg, border: `1px solid ${t.cardBorder}`,
               borderRadius: 12, padding: 16 }}>
-              <div style={{ fontSize: 12, fontWeight: 600, color: '#64748b', marginBottom: 10 }}>
+              <div style={{ fontSize: 12, fontWeight: 600, color: t.textDim, marginBottom: 10 }}>
                 Occupancy Rate Trend
               </div>
               <ResponsiveContainer width="100%" height={120}>
@@ -762,11 +769,10 @@ export default function TravelDashboard() {
                       <stop offset="95%" stopColor="#3b82f6" stopOpacity={0}/>
                     </linearGradient>
                   </defs>
-                  <CartesianGrid strokeDasharray="3 3" stroke="#f1f5f9"/>
+                  <CartesianGrid strokeDasharray="3 3" stroke={ct.grid}/>
                   <XAxis dataKey="t" hide />
-                  <YAxis domain={[0, 100]} tick={{ fill: '#94a3b8', fontSize: 9 }} width={28}/>
-                  <Tooltip contentStyle={{ background: '#ffffff', border: '1px solid #e2e8f0',
-                    borderRadius: 6, fontSize: 11 }} labelStyle={{ color: '#64748b' }} />
+                  <YAxis domain={[0, 100]} tick={{ fill: ct.axis, fontSize: 9 }} width={28}/>
+                  <Tooltip contentStyle={ct.tooltipStyle} labelStyle={{ color: ct.legend }} />
                   <Area dataKey="occ" stroke="#3b82f6" fill="url(#occGrad)" dot={false} strokeWidth={1.5}/>
                 </AreaChart>
               </ResponsiveContainer>
@@ -775,24 +781,23 @@ export default function TravelDashboard() {
 
           {/* F&B Outlets */}
           {fnbs.length > 0 && (
-            <div style={{ background: '#ffffff', border: '1px solid #e2e8f0',
+            <div style={{ background: t.cardBg, border: `1px solid ${t.cardBorder}`,
               borderRadius: 12, padding: 16 }}>
-              <SectionHeader icon="🍽️" title="F&B Outlets" count={fnbs.length} color="#f59e0b" />
+              <SectionHeader icon="🍽️" title="F&B Outlets" count={fnbs.length} color="#f59e0b" theme={theme} />
               <div style={{ display: 'grid', gap: 8, gridTemplateColumns: 'repeat(auto-fill, minmax(180px, 1fr))', marginBottom: 14 }}>
                 {fnbs.map(f => (
-                  <FnBCard key={f.asset_id} asset={f} selected={selectedId === f.asset_id} onClick={() => handleSelect(f.asset_id)} />
+                  <FnBCard key={f.asset_id} asset={f} selected={selectedId === f.asset_id} theme={theme} onClick={() => handleSelect(f.asset_id)} />
                 ))}
               </div>
               {fnbBarData.length > 0 && (
                 <div>
-                  <div style={{ fontSize: 11, color: '#64748b', marginBottom: 6 }}>Outlet Occupancy %</div>
+                  <div style={{ fontSize: 11, color: t.textDim, marginBottom: 6 }}>Outlet Occupancy %</div>
                   <ResponsiveContainer width="100%" height={90}>
                     <BarChart data={fnbBarData} barSize={18}>
-                      <CartesianGrid strokeDasharray="3 3" stroke="#f1f5f9" vertical={false}/>
-                      <XAxis dataKey="name" tick={{ fill: '#94a3b8', fontSize: 9 }} />
-                      <YAxis domain={[0, 100]} tick={{ fill: '#94a3b8', fontSize: 9 }} width={28}/>
-                      <Tooltip contentStyle={{ background: '#ffffff', border: '1px solid #e2e8f0',
-                        borderRadius: 6, fontSize: 11 }} />
+                      <CartesianGrid strokeDasharray="3 3" stroke={ct.grid} vertical={false}/>
+                      <XAxis dataKey="name" tick={{ fill: ct.axis, fontSize: 9 }} />
+                      <YAxis domain={[0, 100]} tick={{ fill: ct.axis, fontSize: 9 }} width={28}/>
+                      <Tooltip contentStyle={ct.tooltipStyle} />
                       <Bar dataKey="occ" fill="#f59e0b" radius={[3, 3, 0, 0]}>
                         {fnbBarData.map((entry, i) => (
                           <Cell key={i} fill={entry.occ > 80 ? '#ef4444' : entry.occ > 60 ? '#f59e0b' : '#22c55e'} />
@@ -808,24 +813,24 @@ export default function TravelDashboard() {
           {/* Spa Services + Facilities row */}
           <div style={{ display: 'grid', gridTemplateColumns: isMobile ? '1fr' : '1fr 1fr', gap: 12 }}>
             {spas.length > 0 && (
-              <div style={{ background: '#ffffff', border: '1px solid #e2e8f0',
+              <div style={{ background: t.cardBg, border: `1px solid ${t.cardBorder}`,
                 borderRadius: 12, padding: 16 }}>
-                <SectionHeader icon="💆" title="Spa & Wellness" count={spas.length} color="#8b5cf6" />
+                <SectionHeader icon="💆" title="Spa & Wellness" count={spas.length} color="#8b5cf6" theme={theme} />
                 <div style={{ display: 'flex', flexDirection: 'column', gap: 6 }}>
                   {spas.map(s => (
-                    <SpaCard key={s.asset_id} asset={s} selected={selectedId === s.asset_id} onClick={() => handleSelect(s.asset_id)} />
+                    <SpaCard key={s.asset_id} asset={s} selected={selectedId === s.asset_id} theme={theme} onClick={() => handleSelect(s.asset_id)} />
                   ))}
                 </div>
               </div>
             )}
 
             {facility.length > 0 && (
-              <div style={{ background: '#ffffff', border: '1px solid #e2e8f0',
+              <div style={{ background: t.cardBg, border: `1px solid ${t.cardBorder}`,
                 borderRadius: 12, padding: 16 }}>
-                <SectionHeader icon="🏊" title="Facilities" count={facility.length} color="#06b6d4" />
+                <SectionHeader icon="🏊" title="Facilities" count={facility.length} color="#06b6d4" theme={theme} />
                 <div style={{ display: 'flex', flexDirection: 'column', gap: 6 }}>
                   {facility.map(f => (
-                    <FacilityCard key={f.asset_id} asset={f} selected={selectedId === f.asset_id} onClick={() => handleSelect(f.asset_id)} />
+                    <FacilityCard key={f.asset_id} asset={f} selected={selectedId === f.asset_id} theme={theme} onClick={() => handleSelect(f.asset_id)} />
                   ))}
                 </div>
               </div>
@@ -834,24 +839,23 @@ export default function TravelDashboard() {
 
           {/* Guest Feedback */}
           {feedback.length > 0 && (
-            <div style={{ background: '#ffffff', border: '1px solid #e2e8f0',
+            <div style={{ background: t.cardBg, border: `1px solid ${t.cardBorder}`,
               borderRadius: 12, padding: 16 }}>
-              <SectionHeader icon="⭐" title="Guest Feedback" count={feedback.length} color="#ec4899" />
+              <SectionHeader icon="⭐" title="Guest Feedback" count={feedback.length} color="#ec4899" theme={theme} />
               <div style={{ display: 'grid', gridTemplateColumns: '1fr auto', gap: 12, alignItems: 'start' }}>
                 <div style={{ display: 'grid', gap: 6, gridTemplateColumns: 'repeat(auto-fill, minmax(160px, 1fr))' }}>
                   {feedback.slice(0, 8).map(f => (
-                    <FeedbackCard key={f.asset_id} asset={f} selected={selectedId === f.asset_id} onClick={() => handleSelect(f.asset_id)} />
+                    <FeedbackCard key={f.asset_id} asset={f} selected={selectedId === f.asset_id} theme={theme} onClick={() => handleSelect(f.asset_id)} />
                   ))}
                 </div>
                 {/* Sentiment chart */}
                 <div style={{ width: 160 }}>
-                  <div style={{ fontSize: 11, color: '#64748b', marginBottom: 6, textAlign: 'center' }}>Sentiment Mix</div>
+                  <div style={{ fontSize: 11, color: t.textDim, marginBottom: 6, textAlign: 'center' }}>Sentiment Mix</div>
                   <ResponsiveContainer width="100%" height={120}>
                     <BarChart data={sentimentData} barSize={28} layout="vertical">
-                      <XAxis type="number" tick={{ fill: '#94a3b8', fontSize: 9 }}/>
-                      <YAxis type="category" dataKey="name" tick={{ fill: '#94a3b8', fontSize: 9 }} width={48}/>
-                      <Tooltip contentStyle={{ background: '#ffffff', border: '1px solid #e2e8f0',
-                        borderRadius: 6, fontSize: 11 }} />
+                      <XAxis type="number" tick={{ fill: ct.axis, fontSize: 9 }}/>
+                      <YAxis type="category" dataKey="name" tick={{ fill: ct.axis, fontSize: 9 }} width={48}/>
+                      <Tooltip contentStyle={ct.tooltipStyle} />
                       <Bar dataKey="count" radius={[0, 3, 3, 0]}>
                         {sentimentData.map((entry, i) => <Cell key={i} fill={entry.fill}/>)}
                       </Bar>
@@ -863,26 +867,26 @@ export default function TravelDashboard() {
           )}
 
           {/* Alert Feed */}
-          <AlertFeed alerts={alerts} maxHeight={260} />
+          <AlertFeed alerts={alerts} maxHeight={260} theme={theme} />
         </div>
 
         {/* ── Right: Detail panel ── */}
         {selectedAsset && DetailComp && (
           <div style={{
             width: 280, flexShrink: 0,
-            background: '#ffffff', border: '1px solid #e2e8f0',
+            background: t.cardBg, border: `1px solid ${t.cardBorder}`,
             borderRadius: 12, padding: 16, position: 'sticky', top: 0,
           }}>
             <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 12 }}>
               <div>
-                <div style={{ fontSize: 13, fontWeight: 700, color: '#1e293b' }}>
+                <div style={{ fontSize: 13, fontWeight: 700, color: t.text }}>
                   {selectedAsset.asset_id}
                 </div>
-                <div style={{ fontSize: 10, color: '#475569', marginTop: 2 }}>
+                <div style={{ fontSize: 10, color: t.textDim, marginTop: 2 }}>
                   {selectedAsset.asset_type?.replace('_', ' ').toUpperCase()}
                 </div>
               </div>
-              <HealthGauge score={selectedAsset.kpis?.health_score ?? 80} size={56} />
+              <HealthGauge score={selectedAsset.kpis?.health_score ?? 80} size={56} theme={theme} />
             </div>
             <DetailComp asset={selectedAsset} />
           </div>

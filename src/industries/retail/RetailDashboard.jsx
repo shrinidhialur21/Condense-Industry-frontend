@@ -28,6 +28,7 @@ import {
   ThemedDashboardHeader,
   ThemedKPICard,
   NotConfiguredGuard,
+  chartTheme,
 } from "../../components/shared.jsx";
 import retailHero from "../../assets/industries/retail.jpg";
 
@@ -149,7 +150,8 @@ function ConversionBar({ rate = 0 }) {
   );
 }
 
-function AssetCard({ asset, selected, onClick }) {
+function AssetCard({ asset, selected, onClick, theme = 'light' }) {
+  const t = THEME[theme];
   const meta = ASSET_META[asset.asset_type] || {
     icon: "🛍️",
     label: asset.asset_type,
@@ -161,9 +163,9 @@ function AssetCard({ asset, selected, onClick }) {
       style={{
         background: selected
           ? "rgba(236,72,153,0.08)"
-          : "rgba(255,255,255,0.03)",
+          : t.cardBg,
         border: `1px solid ${
-          selected ? "rgba(236,72,153,0.4)" : "#e2e8f0"
+          selected ? "rgba(236,72,153,0.4)" : t.cardBorder
         }`,
         borderRadius: 10,
         padding: "12px 14px",
@@ -181,7 +183,7 @@ function AssetCard({ asset, selected, onClick }) {
       >
         <div>
           <span style={{ fontSize: 16, marginRight: 6 }}>{meta.icon}</span>
-          <span style={{ fontSize: 12, fontWeight: 600, color: "#475569" }}>
+          <span style={{ fontSize: 12, fontWeight: 600, color: t.text }}>
             {asset.asset_id}
           </span>
         </div>
@@ -233,11 +235,11 @@ function AssetCard({ asset, selected, onClick }) {
               rate={asset.conversion_rate_pct ?? asset.conversion_rate}
             />
           )}
-          <div style={{ fontSize: 10, color: "#475569", marginTop: 4 }}>
+          <div style={{ fontSize: 10, color: t.textDim, marginTop: 4 }}>
             {meta.label}
           </div>
         </div>
-        <HealthGauge score={health} size={50} />
+        <HealthGauge score={health} size={50} theme={theme} />
       </div>
       {asset.stock_pct != null && asset.stock_pct < 20 && (
         <div
@@ -452,6 +454,7 @@ export default function RetailDashboard() {
     return <NotConfiguredGuard theme={theme} />;
   }
   const t = THEME[theme];
+  const ct = chartTheme(theme);
   return (
     <div
       style={{
@@ -520,7 +523,7 @@ export default function RetailDashboard() {
             style={{
               fontSize: 12,
               fontWeight: 600,
-              color: "#64748b",
+              color: t.textDim,
               textTransform: "uppercase",
               letterSpacing: "0.06em",
               marginBottom: 4,
@@ -533,9 +536,9 @@ export default function RetailDashboard() {
               style={{
                 textAlign: "center",
                 padding: 40,
-                color: "#334155",
+                color: t.textFaint,
                 fontSize: 13,
-                border: "1px dashed rgba(255,255,255,0.06)",
+                border: `1px dashed ${t.cardBorder}`,
                 borderRadius: 10,
               }}
             >
@@ -549,6 +552,7 @@ export default function RetailDashboard() {
                 key={a.asset_id}
                 asset={a}
                 selected={selectedAsset === a.asset_id}
+                theme={theme}
                 onClick={() =>
                   setSelectedAsset(
                     selectedAsset === a.asset_id ? null : a.asset_id
@@ -566,8 +570,8 @@ export default function RetailDashboard() {
             {/* Footfall + conversion trend */}
             <div
               style={{
-                background: "#ffffff",
-                border: "1px solid #e2e8f0",
+                background: t.cardBg,
+                border: `1px solid ${t.cardBorder}`,
                 borderRadius: 12,
                 padding: "16px 20px",
               }}
@@ -576,7 +580,7 @@ export default function RetailDashboard() {
                 style={{
                   fontSize: 13,
                   fontWeight: 600,
-                  color: "#475569",
+                  color: t.textDim,
                   marginBottom: 14,
                 }}
               >
@@ -589,7 +593,7 @@ export default function RetailDashboard() {
                     display: "flex",
                     alignItems: "center",
                     justifyContent: "center",
-                    color: "#334155",
+                    color: t.textFaint,
                     fontSize: 12,
                   }}
                 >
@@ -615,30 +619,22 @@ export default function RetailDashboard() {
                         />
                       </linearGradient>
                     </defs>
-                    <CartesianGrid strokeDasharray="3 3" stroke="#e2e8f0" />
+                    <CartesianGrid strokeDasharray="3 3" stroke={ct.grid} />
                     <XAxis
                       dataKey="time"
-                      tick={{ fontSize: 9, fill: "#475569" }}
+                      tick={{ fontSize: 9, fill: ct.axis }}
                       tickLine={false}
                       axisLine={false}
                       interval="preserveStartEnd"
                     />
                     <YAxis
-                      tick={{ fontSize: 9, fill: "#475569" }}
+                      tick={{ fontSize: 9, fill: ct.axis }}
                       tickLine={false}
                       axisLine={false}
                       width={35}
                     />
-                    <Tooltip
-                      contentStyle={{
-                        background: "#ffffff",
-                        border: "1px solid #e2e8f0",
-                        borderRadius: 8,
-                        fontSize: 11,
-                        color: "#1e293b",
-                      }}
-                    />
-                    <Legend wrapperStyle={{ fontSize: 10, color: "#64748b" }} />
+                    <Tooltip contentStyle={ct.tooltipStyle} />
+                    <Legend wrapperStyle={{ fontSize: 10, color: ct.legend }} />
                     <Area
                       type="monotone"
                       dataKey="footfall"
@@ -667,8 +663,8 @@ export default function RetailDashboard() {
             {/* Zone footfall bar */}
             <div
               style={{
-                background: "#ffffff",
-                border: "1px solid #e2e8f0",
+                background: t.cardBg,
+                border: `1px solid ${t.cardBorder}`,
                 borderRadius: 12,
                 padding: "16px 20px",
               }}
@@ -677,7 +673,7 @@ export default function RetailDashboard() {
                 style={{
                   fontSize: 13,
                   fontWeight: 600,
-                  color: "#475569",
+                  color: t.textDim,
                   marginBottom: 14,
                 }}
               >
@@ -690,7 +686,7 @@ export default function RetailDashboard() {
                     display: "flex",
                     alignItems: "center",
                     justifyContent: "center",
-                    color: "#334155",
+                    color: t.textFaint,
                     fontSize: 12,
                   }}
                 >
@@ -702,28 +698,20 @@ export default function RetailDashboard() {
                     data={footfallBarData}
                     margin={{ top: 5, right: 10, bottom: 5, left: 0 }}
                   >
-                    <CartesianGrid strokeDasharray="3 3" stroke="#e2e8f0" />
+                    <CartesianGrid strokeDasharray="3 3" stroke={ct.grid} />
                     <XAxis
                       dataKey="zone"
-                      tick={{ fontSize: 9, fill: "#475569" }}
+                      tick={{ fontSize: 9, fill: ct.axis }}
                       tickLine={false}
                       axisLine={false}
                     />
                     <YAxis
-                      tick={{ fontSize: 9, fill: "#475569" }}
+                      tick={{ fontSize: 9, fill: ct.axis }}
                       tickLine={false}
                       axisLine={false}
                       width={35}
                     />
-                    <Tooltip
-                      contentStyle={{
-                        background: "#ffffff",
-                        border: "1px solid #e2e8f0",
-                        borderRadius: 8,
-                        fontSize: 11,
-                        color: "#1e293b",
-                      }}
-                    />
+                    <Tooltip contentStyle={ct.tooltipStyle} />
                     <Bar
                       dataKey="footfall"
                       name="Footfall"
@@ -740,8 +728,8 @@ export default function RetailDashboard() {
           {selectedObj && DetailComp && (
             <div
               style={{
-                background: "#ffffff",
-                border: "1px solid #e2e8f0",
+                background: t.cardBg,
+                border: `1px solid ${t.cardBorder}`,
                 borderRadius: 12,
                 padding: "16px 20px",
               }}
@@ -754,7 +742,7 @@ export default function RetailDashboard() {
                 }}
               >
                 <div
-                  style={{ fontSize: 13, fontWeight: 600, color: "#475569" }}
+                  style={{ fontSize: 13, fontWeight: 600, color: t.textDim }}
                 >
                   {ASSET_META[selectedObj.asset_type]?.icon ?? "🛒"}{" "}
                   {selectedObj.asset_id}
@@ -762,7 +750,7 @@ export default function RetailDashboard() {
                     <StatusBadge status={selectedObj.status} />
                   </span>
                 </div>
-                <span style={{ fontSize: 10, color: "#475569" }}>
+                <span style={{ fontSize: 10, color: t.textFaint }}>
                   {selectedObj.processed_at &&
                     new Date(selectedObj.processed_at).toLocaleTimeString()}
                 </span>
@@ -773,7 +761,7 @@ export default function RetailDashboard() {
         </div>
       </div>
 
-      <AlertFeed alerts={alerts} maxHeight={240} />
+      <AlertFeed alerts={alerts} maxHeight={240} theme={theme} />
     </div>
   );
 }
