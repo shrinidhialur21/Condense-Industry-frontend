@@ -84,14 +84,14 @@ export const INDUSTRIES = {
     id:          'manufacturing',
     name:        'Smart Manufacturing / IIoT',
     shortName:   'Manufacturing',
-    description: 'Machine sensors, OEE, cement kilns, vibration & predictive maintenance',
+    description: 'Machine sensors, OEE, cement kilns, vibration & predictive maintenance, aerospace machining & composites',
     icon:        '🏭',
     color:       '#8b5cf6',
     colorMuted:  '#ddd6fe',
     image:       manufacturingImg,
     apiUrl:      import.meta.env.VITE_MFG_API_URL || '',
     ready:       true,
-    assetTypes:  ['cnc_machine', 'conveyor', 'robot_arm', 'env_sensor', 'quality_station', 'cement_kiln', 'cement_mill', 'rotary_equipment'],
+    assetTypes:  ['cnc_machine', 'conveyor', 'robot_arm', 'env_sensor', 'quality_station', 'cement_kiln', 'cement_mill', 'rotary_equipment', 'aero_cnc', 'aero_cmm', 'aero_autoclave'],
   },
 
   logistics: {

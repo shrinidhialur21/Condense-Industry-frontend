@@ -15,6 +15,7 @@ import {
   THEME, ThemeToggle, ThemedKPICard,
 } from '../../components/shared.jsx';
 import manufacturingHero from '../../assets/industries/manufacturing.jpg';
+import AerospaceView, { AEROSPACE_TYPES } from './AerospaceView.jsx';
 
 // Code-split — three.js/react-three-fiber only downloads when this dashboard mounts.
 const FactoryScene3D = lazy(() => import('./FactoryScene3D.jsx'));
@@ -111,6 +112,12 @@ const MFG_VERTICALS = {
     icon:  '📳',
     description: 'Rotary equipment — MEMS/piezo accelerometers, FFT spectrum, ISO 10816 & bearing-fault diagnosis',
     types: ['rotary_equipment'],
+  },
+  aerospace: {
+    label: 'Aerospace',
+    icon:  '✈️',
+    description: '5-axis CNC, CMM metrology & composite autoclaves — Cpk, chatter, cure conformance, enriched with programme / plant metadata',
+    types: AEROSPACE_TYPES,
   },
 };
 
@@ -602,6 +609,7 @@ export default function ManufacturingDashboard() {
 
   const assetList   = fullAssetList.filter(a => MFG_VERTICALS[vertical].types.includes(a.asset_type));
   const isCement    = vertical === 'cement';
+  const isAerospace = vertical === 'aerospace';
   const machines    = assetList.filter(a => a.kpis?.oee_pct != null); // discrete only
   const selectedObj = selectedAsset ? assets[selectedAsset] : null;
 
@@ -629,7 +637,7 @@ export default function ManufacturingDashboard() {
   const bearingFaultCount = rotaryAssets.filter(a => ['bearing_outer','bearing_inner','bearing_ball'].includes(a.kpis?.fault_diagnosis)).length;
 
   useEffect(() => {
-    if (assetList.length === 0) return;
+    if (assetList.length === 0 || isAerospace) return; // aerospace view keeps its own per-asset history
     const hasChanged = assetList.some(a => prevRef.current[a.asset_id]?.processed_at !== a.processed_at);
     if (!hasChanged) return;
     prevRef.current = assets;
@@ -742,7 +750,18 @@ export default function ManufacturingDashboard() {
 
   const t = THEME[theme];
   const ct = chartTheme(theme);
-  const heroStats = isVibration
+  const aeroCpks  = assetList.map(a => a.kpis?.cpk).filter(v => v != null);
+  const aeroCpk   = aeroCpks.length ? (aeroCpks.reduce((s, v) => s + v, 0) / aeroCpks.length).toFixed(2) : '—';
+  const aeroCure  = assetList.filter(a => a.asset_type === 'aero_autoclave' && a.cycle_phase !== 'idle');
+  const aeroCureBad = aeroCure.filter(a => a.kpis?.cure_status === 'nonconforming').length;
+  const heroStats = isAerospace
+    ? [
+        { label: 'Avg Cpk', value: aeroCpk, color: aeroCpk === '—' ? '#e6eaf2' : Number(aeroCpk) >= 1.33 ? '#4ade80' : '#fbbf24' },
+        { label: 'Autoclaves Curing', value: aeroCure.length, color: '#93c5fd' },
+        { label: 'Cure Nonconforming', value: aeroCureBad, color: aeroCureBad > 0 ? '#f87171' : '#4ade80' },
+        { label: 'Critical Alerts', value: critAlerts, color: critAlerts > 0 ? '#f87171' : '#4ade80' },
+      ]
+    : isVibration
     ? [
         { label: 'Avg RMS Velocity', value: avgRMS ?? '—', unit: 'mm/s', color: zoneDCount > 0 ? '#f87171' : '#4ade80' },
         { label: 'Zone D Critical', value: zoneDCount, color: zoneDCount > 0 ? '#f87171' : '#4ade80' },
@@ -771,7 +790,9 @@ export default function ManufacturingDashboard() {
             Smart Manufacturing / IIoT
           </div>
           <div style={{ fontSize:12, color:t.textDim, marginTop:4 }}>
-            {isVibration
+            {isAerospace
+              ? `Aerospace · ${assetList.length} assets · ${assetList.filter(a => a.asset_type === 'aero_cnc').length} CNC · ${assetList.filter(a => a.asset_type === 'aero_cmm').length} CMM · ${assetList.filter(a => a.asset_type === 'aero_autoclave').length} autoclaves`
+              : isVibration
               ? `Vibration Analysis · ${assetList.length} rotary assets · ${bearingFaultCount} bearing faults · ${zoneDCount} in Zone D`
               : isCement
               ? `Cement Manufacturing · ${assetList.length} assets · ${kilns.length} kiln lines · ${mills.length} mills`
@@ -789,6 +810,11 @@ export default function ManufacturingDashboard() {
 
       <VerticalSelector value={vertical} onChange={setVertical} counts={verticalCounts} theme={theme} />
 
+      {isAerospace ? (
+        <div style={{ marginBottom:20 }}>
+          <AerospaceView assets={assetList} alertCount={critAlerts} theme={theme} status={status} />
+        </div>
+      ) : (<>
       {isVibration ? (
         <div style={{ display:'flex', gap:12, marginBottom:24, flexWrap:'wrap' }}>
           <ThemedKPICard theme={theme} label="Avg RMS Velocity" value={avgRMS ?? '—'} unit="mm/s" color={zoneDCount > 0 ? '#dc2626' : '#16a34a'} sub="ISO 10816-3" />
@@ -916,6 +942,8 @@ export default function ManufacturingDashboard() {
           )}
         </div>
       </div>
+
+      </>)}
 
       <AlertFeed alerts={verticalAlerts} maxHeight={240} theme={theme} />
     </div>
